@@ -1,1 +1,96 @@
+import numpy as np
+import matplotlib.pyplot as plt
 
+"""
+Joukowski airfoil generation
+
+"""
+
+Debug = False #toggle debug outputs
+Plot = True #toggle plotting airfoils
+Export = False
+
+n = 200  # Number of points 
+R = 1.0  # Radius of the circular cylinder in the zeta plane
+xi0 = -0.09 # Real center "x"  drives thickness
+eta0 = 0.1 # Imaginary center "y" drives camber/symetry 
+eps = R - np.sqrt(R**2 - eta0**2) - xi0 # Eccentricity parameter  drives trailing edge sharpness
+
+def transform_joukowski_cylinder(n, R, xi0, eta0, eps):
+    
+    # Define the center of the circular cylinder in the ζ-plane (Eq. 19)
+    zeta_0 = xi0 + 1j * eta0
+    
+    # Create an array of angles (θ) to parameterize the circle
+    theta = np.linspace(0, 2 * np.pi, n)
+    
+    # Define the surface of the circular cylinder in the ζ-plane (Eq. 20)
+    zeta_surface = R * np.exp(1j * theta) + zeta_0
+    
+    # Apply the Joukowski transformation to the surface points (Eq. 18)
+    z_surface = zeta_surface + (R - eps)**2 / zeta_surface
+    
+    return zeta_surface, z_surface
+
+# Perform the transformation
+zeta_surface, z_surface = transform_joukowski_cylinder(n, R, xi0, eta0, eps)
+
+# Separate real and imaginary parts for analysis or plotting
+z_real_0 = z_surface.real
+z_imag_0 = z_surface.imag
+
+# Shift leading edge to origin
+x_max = np.max(z_real_0) #maximum "x" value
+x_min = np.min(z_real_0) #minimum "x" vlaue
+
+offset = x_min
+
+if offset < 0:
+    z_real_t =  z_real_0 + abs(offset)
+else:
+    z_real_t = z_real_0 - abs(offset)
+
+# scale chord length to 1
+chord_scale = 1 / np.max(z_real_t)
+
+z_real_f = chord_scale * z_real_t
+z_imag_f = chord_scale * z_imag_0
+
+# flip vlaues to follow clockwise convention 
+z_real = z_real_f[::-1]
+z_imag = z_imag_f[::-1]
+
+
+if Debug:
+    print("X min ", x_min)
+    print("X max", x_max)
+    print("chord scale: ", chord_scale)
+    print("Original Coordinates", zeta_surface)
+    print("Transformed Real Components (z_real):\n", z_real)
+    print("\nTransformed Imaginary Components (z_imag_0):\n", z_imag)
+
+if Plot:
+    #Visualization
+    fig, ax = plt.subplots()
+
+    # Cylinder in ζ-plane
+    ax.plot(zeta_surface.real, zeta_surface.imag, 'r', label='Cylinder (ζ-plane)')
+
+    # Transformed airfoil in z-plane
+    ax.plot(z_real_0, z_imag_0, 'b', label='Joukowski Airfoil (z-plane)')
+
+    # scaled airfoil in z-plane
+    ax.plot(z_real, z_imag, 'c', label='scaled Airfoil (z-plane)')
+
+    ax.set_title('Cylinder and Joukowski Airfoil')
+    ax.set_xlabel('Real Part')
+    ax.set_ylabel('Imaginary Part')
+    ax.set_aspect('equal', adjustable='box')
+    ax.legend()
+
+    plt.show()
+    
+    #output txt file 
+    
+    if Export:
+        np.savetxt("output.txt", np.column_stack((z_real, z_imag)), fmt="%.6f")
