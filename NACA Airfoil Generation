@@ -1,0 +1,70 @@
+import numpy as np
+import matplotlib.pyplot as plt
+
+NACA = input("Enter NACA 4 digit code: ")
+M = int(NACA[0]) / 100 # camber
+P = int(NACA[1]) / 10 # max camber position
+T = int(NACA[2:]) / 100 # thickness
+
+n = 200 #number of points
+C = 2#input("Enter 1 for open section or 2 for closed: ")
+
+# apply correct coefficient for open or closed profile
+if C < 2:
+    # open airfoil coefficients 
+    a_0 = .2969
+    a_1 = -.126
+    a_2 = -.3516
+    a_3 = .2843
+    a_4 = -.1015
+else:
+    # closed airfoil coefficients 
+    a_0 = .298
+    a_1 = -.132
+    a_2 = -.3286
+    a_3 = .2441
+    a_4 = -.0815
+    
+# cos spacing
+beta = np.linspace(0, np.pi, n)
+x = .5 * (1 - np.cos(beta)) #chrod length of 1
+
+#Thickness distribution
+y_t = (T/.2) * ((a_0 * x**.5) + (a_1 * x) + (a_2 * x**2) + (a_3 * x**3) + (a_4 * x**4))
+
+#camber line
+y_c = np.zeros_like(x)
+dyc_dx = np.zeros_like(x)
+for i, xi in enumerate(x):
+    if xi < P:
+        y_c[i] = M / (P**2) * (2*P*xi - xi**2)
+        dyc_dx[i] = 2 * M / (P**2) * (P - xi)
+    else:
+        y_c[i] = M / (1-P)**2 * ((1 - 2*P) + 2*P*xi - xi**2)
+        dyc_dx[i] = 2 * M / (P**2) * (P - xi)
+    
+theta = np.arctan(dyc_dx)
+
+y_u = y_c + y_t*np.cos(theta)
+y_l = y_c - y_t*np.cos(theta)
+x_u = x - y_t*np.sin(theta)
+x_l = x + y_t*np.sin(theta)
+
+x = np.concatenate((np.flip(x_u), x_l[1:]))
+y = np.concatenate((np.flip(y_u), y_l[1:]))
+
+print("x", x)
+print("y", y)
+
+# Plotting the airfoil
+plt.figure(figsize=(10, 2))
+plt.plot(x, y, 'b-')
+plt.title(f'NACA {NACA} Airfoil')
+plt.xlabel('x/c')
+plt.ylabel('y/c')
+plt.axis('equal')
+plt.grid(True)
+plt.show()
+
+#output the airfoil
+np.savetxt(f"naca{NACA}.txt", np.column_stack((x, y)), fmt="%.6f")
