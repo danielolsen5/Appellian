@@ -1,0 +1,6 @@
+{
+    "geometry" : "naca2412.txt",
+    "freestream_velocity" : 10,
+    "alpha(deg)" : 0
+}
+
