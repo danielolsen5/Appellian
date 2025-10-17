@@ -1,0 +1,148 @@
+import json
+import numpy as np
+import matplotlib.pyplot as plt
+import os
+
+
+# === DEBUG TOGGLE ===
+DEBUG = False
+
+# Global variables
+V_inf = 20.0             # freestream velocity magnitude
+a_deg = 0.0              # angle alpha in deg
+a = np.radians(a_deg)
+P_inf = 101325.0         # free stream pressure Pa
+rho = 1.225              # air density kg/m^3
+c = 1.0                  # chord length
+
+# Read geometry from JSON
+filename = "json_input.json"
+with open(filename, "r") as fh:
+    input_dict = json.load(fh)
+
+NACAfile = input_dict["geometry"]
+info = []
+with open(NACAfile, "r") as f:
+    for line in f:
+        if line.strip() == "":
+            continue
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        info.append([float(parts[0]), float(parts[1])])
+
+info = np.array(info)
+x_input = info[:, 0]
+y_input = info[:, 1]
+
+# geometry
+x = x_input
+y = y_input
+n = len(x)
+n_pan = n - 1
+
+#panel lengths 
+dx = x[1:] - x[:-1]
+dy = y[1:] - y[:-1]
+l  = np.sqrt(dx**2 + dy**2)
+
+# B
+B = V_inf * ((dy * np.cos(a)) - (dx * np.sin(a))) / l
+B = np.append(B, 0)
+
+# control points
+xc = 0.5 * (x[:-1] + x[1:])
+yc = 0.5 * (y[:-1] + y[1:])
+if DEBUG:
+    print("xc:", xc)
+    print("yc:", yc)
+
+# build A 1.6.25
+def build_A(x, y, xc, yc, dx, dy, l, DEBUG=False):
+    n_pan = len(dx)
+    A = np.zeros((n, n), dtype=float)
+    eps = 1e-15
+
+    for i in range(n-1):
+        
+        # outward unit normal at control point i 
+        nx = dx[i] / l[i]
+        ny = -dy[i] / l[i]
+
+        for j in range(n-1):
+            dxj = dx[j]; dyj = dy[j]; lj = l[j]
+
+            #1.6.20  xi, eta in panel-j coordinates
+            # use panel j to build the local frame 
+            M = np.array([[dxj,  dyj],
+                           [-dyj, dxj]])   # transform for panel j
+
+            #1.6.20
+            # vector from panel-j start to control point i
+            N = np.array([xc[i] - x[j], yc[i] - y[j]])
+
+            xi_eta = (1.0 / lj) * M.dot(N)   # [xi, eta]
+            xi = float(xi_eta[0])
+            eta = float(xi_eta[1])
+
+            # phi 1.6.21
+            phi = np.arctan2(eta * lj, (eta**2 + xi**2 - xi * lj))
+            
+            # psi 1.6.22
+            num = xi**2 + eta**2
+            den = (xi - lj)**2 + eta**2
+            psi = 0.5 * np.log(num / (den ))
+
+            # P 1.6.23
+            W = np.array([
+                [(lj - xi) * phi + (eta * psi),       xi * phi - eta * psi],
+                [eta * phi - (lj - xi) * psi - lj,  -eta * phi - xi * psi + lj]
+            ])
+            
+            V = np.array([[dxj,  -dyj],
+                           [dyj, dxj]])
+
+            # P 
+            P = (1.0 / (2.0 * np.pi * lj**2)) * (np.matmul(V, W))
+
+            # build A
+            A[i, j] += nx * P[1, 0] + ny * P[0, 0]
+            A[i, (j + 1) ] += nx * P[1, 1] + ny * P[0, 1]
+
+            if DEBUG and (i, j) in ((0,0), (0,1), (0,2)):
+                print("\nDEBUG: influence of panel j={} on cp i={}".format(j, i))
+                print(" panel j start (x,y) = ({:.12e}, {:.12e})".format(x[j], y[j]))
+                print(" panel j end   (x,y) = ({:.12e}, {:.12e})".format(x[j+1], y[j+1]))
+                print(" cp (x,y) = ({:.12e}, {:.12e})".format(xc[i], yc[i]))
+                print(" panel length l_j = {:.12e}".format(lj))
+                print("    xi = {:.15e}".format(xi))
+                print("   eta = {:.15e}".format(eta))
+                print("   psi = {:.15e}".format(psi))
+                print("   phi = {:.15e}".format(phi))
+                print("   M =\n", M)
+                print("   N =\n", N)
+                print("   P =\n", P)
+    return A
+
+A = build_A(x, y, xc, yc, dx, dy, l, DEBUG=False)
+A[-1,:] = 0.0
+A[-1,0] = 1.0
+A[-1,-1] = 1.0
+
+
+gamma = np.linalg.solve(A, B)
+
+# Section lift 1.6.32
+def calculate_lift_coefficient(l, gamma, c, V_inf):
+
+    C_L = 0  # Initialize the lift coefficient 
+    n = len(l)
+
+    # Loop through each segment from i=0 to n-1
+    for i in range(n):
+        segment_contribution = (l[i] / c) * ((gamma[i] + gamma[i+1]) / V_inf)
+        C_L += segment_contribution  # Add the segment's contribution to the total
+    return C_L
+
+C_L = calculate_lift_coefficient(l, gamma, c, V_inf)
+print("C_L", C_L)
