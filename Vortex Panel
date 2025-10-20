@@ -104,6 +104,14 @@ def build_A(x, y, xc, yc, dx, dy, l, DEBUG=False):
 
             # P 
             P = (1.0 / (2.0 * np.pi * lj**2)) * (np.matmul(V, W))
+            
+            # construct P matrix for velocity at a point
+            W = np.array([
+                [(lj - xi) * phi + (eta * psi),       xi * phi - eta * psi],
+                [eta * phi - (lj - xi) * psi - lj,  -eta * phi - xi * psi + lj]
+                ])
+            
+            p_v = (1.0 / (2.0 * np.pi * lj**2)) * (np.matmul(V, W_v))
 
             # build A
             A[i, j] += nx * P[1, 0] + ny * P[0, 0]
@@ -122,7 +130,7 @@ def build_A(x, y, xc, yc, dx, dy, l, DEBUG=False):
                 print("   M =\n", M)
                 print("   N =\n", N)
                 print("   P =\n", P)
-    return A
+    return A, p_v
 
 A = build_A(x, y, xc, yc, dx, dy, l, DEBUG=False)
 A[-1,:] = 0.0
@@ -144,5 +152,35 @@ def calculate_lift_coefficient(l, gamma, c, V_inf):
         C_L += segment_contribution  # Add the segment's contribution to the total
     return C_L
 
+# leading edge moment 
+def calculate_moment(x, y, gamma, c, l, V_inf, a):
+    for i in range(n):
+        sx = 2*x[i]*gamma[i] + x[i]*gamma[i+1] + x[i+1]*gamma[i] +2*x[i+1]*gamma[i+1]
+        sy = 2*y[i]*gamma[i] + y[i]*gamma[i+1] + y[i+1]*gamma[i] + 2*y[i+1]*gamma[i+1]
+        panel_contribution = (l[i] / c) * ((sx * np.cos(a) / (V_inf*c)) + (sy* (np.sin(a)/(c*V_inf)))) #1.6.33
+        C_mle += (-1/3) * panel_contribution
+    return C_mle
+
+# velocity at a point
+def calculate_velocity(p_v):
+    for i in range(n):
+        v = np.zerros(2, n)
+        
+        v_comp = np.array([[V_inf * np.cos(a),
+                            V_inf * np.sin(a)]])
+        
+        gammai = np.array([[ gamma[i],    #define the 1x2 gamma vector 
+                    gamma[i+1]]])
+        
+        v +=  v_comp + np.matmul(p_v, gammai)
+    return v
+        
+        
 C_L = calculate_lift_coefficient(l, gamma, c, V_inf)
-print("C_L", C_L)
+print(f"Lift Coefficient: {C_L:.4f} ")
+
+C_mle = calculate_moment(x, y, gamma, c, l, V_inf, a)
+print(f"Leading-edge Moment Coefficient: {C_mle:.4f}")
+
+C_qc = C_mle + .25 * C_L
+print(f"Quarter Chord Moment Coefficient: {C_qc:.4f}")
