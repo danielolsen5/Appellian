@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 from matplotlib.path import Path
+from scipy.interpolate import RegularGridInterpolator
 
 # === DEBUG TOGGLE ===
 DEBUG = False
@@ -45,6 +46,7 @@ n_pan = n - 1
 """
 VPM Formulation
 """
+
 #panel lengths 
 dx = x[1:] - x[:-1]
 dy = y[1:] - y[:-1]
@@ -166,6 +168,13 @@ def calculate_moment(x, y, gamma, c, l, V_inf, a):
 """
 Strealine Formulation
 """
+# grid for streamlines/velocity
+n_grid = 200
+x_start, x_end = -0.5, 1.5
+y_start, y_end = -0.5, 0.5
+X, Y = np.meshgrid(np.linspace(x_start, x_end, n_grid),
+                   np.linspace(y_start, y_end, n_grid))
+h = .1
 
 # velocity at a point
 def calculate_velocity(V_inf, a):
@@ -208,65 +217,116 @@ def calculate_velocity(V_inf, a):
         v_induced = (1 / (2 * np.pi * lj**2)) * (
             (dyj*W11 + dxj*W21) * gamma[j] + (dyj*W12 + dxj*W22) * gamma[j+1]
         )
-
-        v +=np.array([[ u_induced,
-                       v_induced]])
+        u += u_induced
+        v += v_induced
         
-    return v
+    return u, v
 
-v = calculate_velocity(V_inf, a)
+u_field, v_field = calculate_velocity(X, Y, x, y, n_pan, gamma, V_inf, a)
 
-def streamline(v):
-    h = .1 # step
-    sl = np.zerros[n]
-    for i in range(n):
-        #RK4 formulation
-        k1 = np.linalg.norm(v[i, i]])
-        k2 = np.linalg.norm(v[i+(h/2), i+(k1*h / 2)]])
-        k3 = np.linalg.norm(v[i+(h/2), i+(k2*h / 2)]])
-        k4 = np.linalg.norm(v[i+(h/2), i+(k3*h / 2)]])
-        sl[i+1] += sl[i] + ((h/6) * (k1 + 2*k2 + 2*k3 + k4))
 
-# plot streamlines
-u_field = streamline(v)
-v_field = streamline(v)
 
-# Create a grid for the streamline plot
-n_grid = 200
-x_start, x_end = -0.5, 1.5
-y_start, y_end = -.5, .5
-X, Y = np.meshgrid(np.linspace(x_start, x_end, n_grid),
-                   np.linspace(y_start, y_end, n_grid))
+def calculate_single_streamline_rk4(x_start, y_start, h, n_steps, x_range, y_range, u_field, v_field):
 
-# mask airfoil area
-airfoil_path = Path(np.vstack((x, y)).T)
-mask = airfoil_path.contains_points(np.vstack((X.ravel(), Y.ravel())).T).reshape(X.shape)
-u_field[mask] = np.nan
-v_field[mask] = np.nan
+    interp_u = RegularGridInterpolator((y_range, x_range), u_field)
+    interp_v = RegularGridInterpolator((y_range, x_range), v_field)
 
-print("Generating streamline plot...")
-plt.style.use('seaborn-v0_8-whitegrid')
-fig, ax = plt.subplots(figsize=(12, 9))
+    def get_velocity(point):
+        
+        try:
+            u = interp_u([point[1], point[0]])[0]
+            v = interp_v([point[1], point[0]])[0]
+            return np.array([u, v])
+        except ValueError:
+            # Point is outside the interpolation range
+            return np.array([np.nan, np.nan])
+
+    # --- 2. Initialize streamline array ---
+    streamline_points = np.zeros((n_steps, 2))
+    streamline_points[0] = [x_start, y_start]
+
+    # --- 3. Run RK4 Integration ---
+    current_point = np.array([x_start, y_start])
+    
+    for i in range(1, n_steps):
+        # vector RK4 formulation
+        
+        k1 = get_velocity(current_point)
+        if np.isnan(k1).any():
+            streamline_points[i:] = np.nan # Stop if out of bounds
+            break
+            
+        k2 = get_velocity(current_point + 0.5 * h * k1)
+        if np.isnan(k2).any():
+            streamline_points[i:] = np.nan
+            break
+
+        k3 = get_velocity(current_point + 0.5 * h * k2)
+        if np.isnan(k3).any():
+            streamline_points[i:] = np.nan
+            break
+
+        k4 = get_velocity(current_point + h * k3)
+        if np.isnan(k4).any():
+            streamline_points[i:] = np.nan
+            break
+
+        # Update the point
+        new_point = current_point + (h / 6.0) * (k1 + 2*k2 + 2*k3 + k4)
+        streamline_points[i] = new_point
+        current_point = new_point
+        
+    return streamline_points
 
 # Plot the airfoil shape
-ax.fill(x, y, color='lightgray', edgecolor='black', linewidth=1, zorder=3)
+plt.ax.fill(x, y, color='lightgray', edgecolor='black', linewidth=1, zorder=3)
 
-# Plot the streamlines
+# --- 1. Plot the full field using plt.streamplot (which also uses RK) ---
 magnitude = np.sqrt(u_field**2 + v_field**2)
-ax.streamplot(X, Y, u_field, v_field, 
+plt.ax.streamplot(X, Y, u_field, v_field, 
               density=2.5, 
               linewidth=0.5, 
               color=magnitude, 
               cmap='viridis',
               arrowsize=0.2)
 
-# Formatting
-ax.set_xlim(x_start, x_end)
-ax.set_ylim(y_start, y_end)
-ax.set_aspect('equal', adjustable='box')
-ax.set_title(f'Streamlines around Airfoil at {np.degrees(a)}° Angle of Attack', fontsize=16)
-ax.set_xlabel('x / c', fontsize=12)
-ax.set_ylabel('y / c', fontsize=12)
+# --- 2. Plot YOUR RK4 streamline on top ---
+
+# Get the coordinate arrays from the grid
+x_range = X[0, :]
+y_range = Y[:, 0]
+
+# Define streamline parameters
+start_point = [x_start, 0.1] # Start at (-0.5, 0.1)
+step_size = 0.01             # Note: A smaller h is better
+n_steps = 500
+
+u_field_unmasked = calculate_single_streamline_rk4(x_start, y_start, h, n_steps, x_range, y_range, u_field, v_field)
+v_field_unmasked = calculate_single_streamline_rk4(x_start, y_start, h, n_steps, x_range, y_range, u_field, v_field)
+
+# Calculate the single streamline
+sl_points = calculate_single_streamline_rk4(
+    start_point[0], start_point[1], 
+    step_size, n_steps,
+    x_range, y_range, 
+    u_field_unmasked, v_field_unmasked # Use fields *before* masking
+)
+
+# Plot the single line
+plt.ax.plot(sl_points[:, 0], sl_points[:, 1], 
+        color='red', 
+        linewidth=2.0, 
+        linestyle='--',
+        label='Custom RK4 Streamline')
+
+# --- Formatting ---
+plt.ax.set_xlim(x_start, x_end)
+plt.ax.set_ylim(y_start, y_end)
+plt.ax.set_aspect('equal', adjustable='box')
+plt.ax.set_title(f'Streamlines at {np.degrees(a):.1f}° AoA (with custom RK4 line)', fontsize=16)
+plt.ax.set_xlabel('x / c', fontsize=12)
+plt.ax.set_ylabel('y / c', fontsize=12)
+plt.ax.legend()
 plt.show()
 
 """
