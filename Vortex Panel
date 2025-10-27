@@ -7,6 +7,7 @@ from scipy.interpolate import RegularGridInterpolator
 
 # === DEBUG TOGGLE ===
 DEBUG = False
+Plot = True
 
 # Global variables
 V_inf = 20.0             # freestream velocity magnitude
@@ -147,156 +148,156 @@ gamma = np.linalg.solve(A, B)
 """
 Streamline Formulation
 """
+if Plot: 
+    # grid for streamlines/velocity
+    n_grid = 200
+    x_start, x_end = -0.5, 1.5
+    y_start, y_end = -0.5, 0.5
 
-# grid for streamlines/velocity
-n_grid = 200
-x_start, x_end = -0.5, 1.5
-y_start, y_end = -0.5, 0.5
-#np.meshgrid(x_vals, y_vals) with default indexing='xy' returns X.shape==(ny, nx)
-x_vals = np.linspace(x_start, x_end, n_grid)
-y_vals = np.linspace(y_start, y_end, n_grid)
-X, Y = np.meshgrid(x_vals, y_vals)
+    #np.meshgrid(x_vals, y_vals) with default indexing='xy' returns X.shape==(ny, nx)
+    x_vals = np.linspace(x_start, x_end, n_grid)
+    y_vals = np.linspace(y_start, y_end, n_grid)
+    X, Y = np.meshgrid(x_vals, y_vals)
 
-# RK4 step-size 
-h_stream = 0.001
+    # RK4 step-size 
+    h_stream = 0.001
 
-# velocity at a point 
-def calculate_velocity(X, Y, x, y, n_pan, gamma, V_inf, a):
+    # velocity at a point 
+    def calculate_velocity(X, Y, x, y, n_pan, gamma, V_inf, a):
 
-    # initialize velocity field
-    u = np.full_like(X, V_inf * np.cos(a))  # freestream u
-    v = np.full_like(Y, V_inf * np.sin(a))  # freestream v
+        # initialize velocity field
+        u = np.full_like(X, V_inf * np.cos(a))  # freestream u
+        v = np.full_like(Y, V_inf * np.sin(a))  # freestream v
 
-    # Panel geometry
-    dx_panel = x[1:] - x[:-1]
-    dy_panel = y[1:] - y[:-1]
-    l_panel = np.sqrt(dx_panel**2 + dy_panel**2)
+        # Panel geometry
+        dx_panel = x[1:] - x[:-1]
+        dy_panel = y[1:] - y[:-1]
+        l_panel = np.sqrt(dx_panel**2 + dy_panel**2)
 
-    # Add influence of each vortex panel to the velocity field
-    for j in range(n_pan):
-        dxj, dyj, lj = dx_panel[j], dy_panel[j], l_panel[j]
+        # Add influence of each vortex panel to the velocity field
+        for j in range(n_pan):
+            dxj, dyj, lj = dx_panel[j], dy_panel[j], l_panel[j]
 
-        # Transform grid points to the panel's local coordinate system
-        N_x = X - x[j]
-        N_y = Y - y[j]
-        xi = (N_x * dxj + N_y * dyj) / lj
-        eta = (-N_x * dyj + N_y * dxj) / lj
+            # Transform grid points to the panel's local coordinate system
+            N_x = X - x[j]
+            N_y = Y - y[j]
+            xi = (N_x * dxj + N_y * dyj) / lj
+            eta = (-N_x * dyj + N_y * dxj) / lj
 
-        # Calculate phi and psi (same formulas as in build_A)
-        phi = np.arctan2(eta * lj, (eta**2 + xi**2 - xi * lj + 1e-12))
-        psi = 0.5 * np.log(((xi**2 + eta**2) / ((xi - lj)**2 + eta**2 + 1e-12)) + 1e-12)
+            # Calculate phi and psi (same as in build_A)
+            phi = np.arctan2(eta * lj, (eta**2 + xi**2 - xi * lj + 1e-12))
+            psi = 0.5 * np.log(((xi**2 + eta**2) / ((xi - lj)**2 + eta**2 + 1e-12)) + 1e-12)
 
-        # W matrix elements
-        W11 = (lj - xi) * phi + eta * psi
-        W12 = xi * phi - eta * psi
-        W21 = eta * phi - (lj - xi) * psi - lj
-        W22 = -eta * phi - xi * psi + lj
+            # W matrix elements
+            W11 = (lj - xi) * phi + eta * psi
+            W12 = xi * phi - eta * psi
+            W21 = eta * phi - (lj - xi) * psi - lj
+            W22 = -eta * phi - xi * psi + lj
 
-        # induced velocities
-        u_induced = (1 / (2 * np.pi * lj**2)) * (
-            (dxj * W11 - dyj * W21) * gamma[j] + (dxj * W12 - dyj * W22) * gamma[j+1]
-        )
-        v_induced = (1 / (2 * np.pi * lj**2)) * (
-            (dyj * W11 + dxj * W21) * gamma[j] + (dyj * W12 + dxj * W22) * gamma[j+1]
-        )
-        u += u_induced
-        v += v_induced
+            # induced velocities
+            u_induced = (1 / (2 * np.pi * lj**2)) * (
+                (dxj * W11 - dyj * W21) * gamma[j] + (dxj * W12 - dyj * W22) * gamma[j+1]
+            )
+            v_induced = (1 / (2 * np.pi * lj**2)) * (
+                (dyj * W11 + dxj * W21) * gamma[j] + (dyj * W12 + dxj * W22) * gamma[j+1]
+            )
+            u += u_induced
+            v += v_induced
 
-    return u, v
+        return u, v
 
-# compute velocity field
-u_field, v_field = calculate_velocity(X, Y, x, y, n_pan, gamma, V_inf, a)
+    # compute velocity field
+    u_field, v_field = calculate_velocity(X, Y, x, y, n_pan, gamma, V_inf, a)
 
-# RK4 streamline integrator
-def calculate_single_streamline_rk4(x_start, y_start, h, n_steps, x_range, y_range, u_field, v_field):
-    # RegularGridInterpolator expects (y, x) order for grid points
-    interp_u = RegularGridInterpolator((y_range, x_range), u_field)
-    interp_v = RegularGridInterpolator((y_range, x_range), v_field)
+    # RK4 streamline integrator
+    def calculate_single_streamline_rk4(x_start, y_start, h, n_steps, x_range, y_range, u_field, v_field):
+        # RegularGridInterpolator expects (y, x) order for grid points
+        interp_u = RegularGridInterpolator((y_range, x_range), u_field)
+        interp_v = RegularGridInterpolator((y_range, x_range), v_field)
 
-    def get_velocity(point):
-        try:
-            # Interpolator expects [y, x]
-            u = interp_u([point[1], point[0]])[0]
-            v = interp_v([point[1], point[0]])[0]
-            return np.array([u, v])
-        except ValueError:
-            # Point is outside the interpolation grid
-            return np.array([np.nan, np.nan])
+        def get_velocity(point):
+            try:
+                # Interpolator expects [y, x]
+                u = interp_u([point[1], point[0]])[0]
+                v = interp_v([point[1], point[0]])[0]
+                return np.array([u, v])
+            except ValueError:
+                # Point is outside the interpolation grid
+                return np.array([np.nan, np.nan])
 
-    streamline_points = np.zeros((n_steps, 2))
-    streamline_points[0] = [x_start, y_start]
-    current_point = np.array([x_start, y_start])
+        streamline_points = np.zeros((n_steps, 2))
+        streamline_points[0] = [x_start, y_start]
+        current_point = np.array([x_start, y_start])
 
-    for i in range(1, n_steps):
-        k1 = get_velocity(current_point)
-        if np.isnan(k1).any():
-            streamline_points[i:] = np.nan
-            break
-        k2 = get_velocity(current_point + 0.5 * h * k1)
-        if np.isnan(k2).any():
-            streamline_points[i:] = np.nan
-            break
-        k3 = get_velocity(current_point + 0.5 * h * k2)
-        if np.isnan(k3).any():
-            streamline_points[i:] = np.nan
-            break
-        k4 = get_velocity(current_point + h * k3)
-        if np.isnan(k4).any():
-            streamline_points[i:] = np.nan
-            break
+        for i in range(1, n_steps):
+            k1 = get_velocity(current_point)
+            if np.isnan(k1).any():
+                streamline_points[i:] = np.nan
+                break
+            k2 = get_velocity(current_point + 0.5 * h * k1)
+            if np.isnan(k2).any():
+                streamline_points[i:] = np.nan
+                break
+            k3 = get_velocity(current_point + 0.5 * h * k2)
+            if np.isnan(k3).any():
+                streamline_points[i:] = np.nan
+                break
+            k4 = get_velocity(current_point + h * k3)
+            if np.isnan(k4).any():
+                streamline_points[i:] = np.nan
+                break
 
-        new_point = current_point + (h / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
-        streamline_points[i] = new_point
-        current_point = new_point
+            new_point = current_point + (h / 6.0) * (k1 + 2 * k2 + 2 * k3 + k4)
+            streamline_points[i] = new_point
+            current_point = new_point
         
-        # Optional: Check if point left the domain boundaries
-        if not (x_start <= new_point[0] <= x_end and y_start <= new_point[1] <= y_end):
-             streamline_points[i:] = np.nan # Mark remaining points as invalid
-             break
+            # Optional: Check if point left the domain boundaries
+            if not (x_start <= new_point[0] <= x_end and y_start <= new_point[1] <= y_end):
+                streamline_points[i:] = np.nan # Mark remaining points as invalid
+                break
 
-    return streamline_points
+        return streamline_points
 
-# plotting 
-fig, ax = plt.subplots(figsize=(10, 6))
+    # plotting 
+    fig, ax = plt.subplots(figsize=(10, 6))
 
-# Plot the airfoil
-ax.fill(x, y, color='lightgray', edgecolor='black', linewidth=1, zorder=3)
+    # Plot the airfoil
+    ax.fill(x, y, color='lightgray', edgecolor='black', linewidth=1, zorder=3)
 
 
-# Plot multiple streamlines using RK4
+    # Plot multiple streamlines using RK4
 
-x_range = x_vals # X[0, :]
-y_range = y_vals # Y[:, 0]
-n_steps = 5000   # Max steps per streamline
+    x_range = x_vals # X[0, :]
+    y_range = y_vals # Y[:, 0]
+    n_steps = 5000   # Max steps per streamline
 
-# Define starting points for the streamlines
-n_streamlines = 50
-y_starts = np.linspace(y_start, y_end, n_streamlines)
-x_start_val = x_start # Start all streamlines from the left boundary
+    # Define starting points for the streamlines
+    n_streamlines = 50
+    y_starts = np.linspace(y_start, y_end, n_streamlines)
+    x_start_val = x_start # Start all streamlines from the left boundary
 
-for y0 in y_starts:
-    # Calculate one streamline
-    sl_points = calculate_single_streamline_rk4(
-        x_start_val, y0,
-        h_stream, n_steps,
-        x_range, y_range,
-        u_field, v_field
-    )
+    for y0 in y_starts:
+        # Calculate one streamline
+        sl_points = calculate_single_streamline_rk4(
+            x_start_val, y0,
+            h_stream, n_steps,
+            x_range, y_range,
+            u_field, v_field
+        )
     
-    # Plot the calculated streamline
-    ax.plot(sl_points[:, 0], sl_points[:, 1],
-            color='blue', linewidth=0.8, zorder=2) # zorder=2 puts lines behind airfoil edge
+        # Plot the calculated streamline
+        ax.plot(sl_points[:, 0], sl_points[:, 1],
+                color='blue', linewidth=0.8, zorder=2) # zorder=2 puts lines behind airfoil edge
 
-print("RK4 streamline calculation complete.")
 
-# Formatting
-ax.set_xlim(x_start, x_end)
-ax.set_ylim(y_start, y_end)
-ax.set_aspect('equal', adjustable='box')
-ax.set_title(f'Streamlines at {np.degrees(a):.1f}° AoA (Custom RK4 only)', fontsize=14)
-ax.set_xlabel('x / c', fontsize=12)
-ax.set_ylabel('y / c', fontsize=12)
-plt.show()
+    # Formatting
+    ax.set_xlim(x_start, x_end)
+    ax.set_ylim(y_start, y_end)
+    ax.set_aspect('equal', adjustable='box')
+    ax.set_title(f'Streamlines at {np.degrees(a):.1f}° AoA', fontsize=14)
+    ax.set_xlabel('x / c', fontsize=12)
+    ax.set_ylabel('y / c', fontsize=12)
+    plt.show()
 
 
 # Section lift 1.6.32
@@ -313,11 +314,17 @@ def calculate_lift_coefficient(l, gamma, c, V_inf):
 
 # leading edge moment 
 def calculate_moment(x, y, gamma, c, l, V_inf, a):
-    for i in range(n):
-        sx = 2*x[i]*gamma[i] + x[i]*gamma[i+1] + x[i+1]*gamma[i] +2*x[i+1]*gamma[i+1]
+    C_mle = 0 # initialize value
+    for i in range(n - 1):  # stop one short to avoid index overflow
+        sx = 2*x[i]*gamma[i] + x[i]*gamma[i+1] + x[i+1]*gamma[i] + 2*x[i+1]*gamma[i+1]
         sy = 2*y[i]*gamma[i] + y[i]*gamma[i+1] + y[i+1]*gamma[i] + 2*y[i+1]*gamma[i+1]
-        panel_contribution = (l[i] / c) * ((sx * np.cos(a) / (V_inf*c)) + (sy* (np.sin(a)/(c*V_inf)))) #1.6.33
+        
+        panel_contribution = (l[i] / c) * (
+            (sx * np.cos(a) / (V_inf * c)) +
+            (sy * np.sin(a) / (V_inf * c))
+        )
         C_mle += (-1/3) * panel_contribution
+
     return C_mle
 
 """
@@ -325,10 +332,10 @@ Calculation printouts
 """
 
 C_L = calculate_lift_coefficient(l, gamma, c, V_inf)
-print(f"Lift Coefficient: {C_L:.4f} ")
+print(f"Lift Coefficient: {C_L:.5f} ")
 
 C_mle = calculate_moment(x, y, gamma, c, l, V_inf, a)
-print(f"Leading-edge Moment Coefficient: {C_mle:.4f}")
+print(f"Leading-edge Moment Coefficient: {C_mle:.5f}")
 
 C_qc = C_mle + (.25 * C_L)
-print(f"Quarter Chord Moment Coefficient: {C_qc:.4f}")
+print(f"Quarter Chord Moment Coefficient: {C_qc:.5f}")
