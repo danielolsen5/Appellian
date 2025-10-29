@@ -8,6 +8,7 @@ from scipy.interpolate import RegularGridInterpolator
 # === DEBUG TOGGLE ===
 DEBUG = False
 Plot = True
+Print = False
 
 # Global variables
 V_inf = 20.0             # freestream velocity magnitude
@@ -251,7 +252,7 @@ if Plot:
             streamline_points[i] = new_point
             current_point = new_point
         
-            # Optional: Check if point left the domain boundaries
+            # Check if point left the domain boundaries
             if not (x_start <= new_point[0] <= x_end and y_start <= new_point[1] <= y_end):
                 streamline_points[i:] = np.nan # Mark remaining points as invalid
                 break
@@ -330,12 +331,31 @@ def calculate_moment(x, y, gamma, c, l, V_inf, a):
 """
 Calculation printouts
 """
+if Print: 
+    C_L = calculate_lift_coefficient(l, gamma, c, V_inf)
+    print(f"Lift Coefficient: {C_L:.5f} ")
 
-C_L = calculate_lift_coefficient(l, gamma, c, V_inf)
-print(f"Lift Coefficient: {C_L:.5f} ")
+    C_mle = calculate_moment(x, y, gamma, c, l, V_inf, a)
+    print(f"Leading-edge Moment Coefficient: {C_mle:.5f}")
 
-C_mle = calculate_moment(x, y, gamma, c, l, V_inf, a)
-print(f"Leading-edge Moment Coefficient: {C_mle:.5f}")
-
-C_qc = C_mle + (.25 * C_L)
-print(f"Quarter Chord Moment Coefficient: {C_qc:.5f}")
+    C_qc = C_mle + (.25 * C_L)
+    print(f"Quarter Chord Moment Coefficient: {C_qc:.5f}")
+    
+    
+"""
+Apply Appellian
+"""
+   
+def appellian(x,y):
+    for i in range(n):
+        delx = .01 # x step
+        dely = delx # y step
+        # outward unit normal at control point i 
+        nx = dx[i] / l[i]
+        ny = -dy[i] / l[i]
+            
+        # compute partial derivatives            
+        duxx = (u[x[i+1]]*delx**2)  #58
+        duxy = #59
+        duyx = #60
+        duyy = #61
