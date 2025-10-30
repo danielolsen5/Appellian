@@ -8,7 +8,7 @@ Joukowski airfoil generation
 
 Debug = False #toggle debug outputs
 Plot = True #toggle plotting airfoils
-Export = False
+Export = False #toggle export file
 
 n = 200  # Number of points 
 R = 1.0  # Radius of the circular cylinder in the zeta plane
@@ -87,7 +87,6 @@ if Plot:
     ax.set_ylabel('Imaginary Part')
     ax.set_aspect('equal', adjustable='box')
     ax.legend()
-
     plt.show()
     
     #output txt file 
