@@ -108,3 +108,73 @@ if Plot:
     
     if Export:
         np.savetxt("output.txt", np.column_stack((z_real, z_imag)), fmt="%.6f")
+    
+    """
+    Define curvature along the airfoil
+    """
+#define curvature with quadratic
+def quad_curvature(z_real, z_imag, n):
+    k = np.zeros(n-2)
+    for i in range(n-2):
+
+        # define C with imag values
+        C = np.array([[z_imag[i]],
+                      [z_imag[i+1]],
+                      [z_imag[i+2]]])
+            
+        #build A with real values
+        A = np.array([[z_real[i]**2, z_real[i], 1],
+                      [z_real[i+1]**2, z_real[i+1], 1],
+                      [z_real[i+2]**2, z_real[i+2], 1]])
+            
+        # invert A 
+        A_inv = np.linalg.inv(A)
+        #solve for quadratic constants 
+        B = np.linalg.solve(A_inv, C)
+
+        # first derivative of quadratic
+        d1 = (2*B[0]*z_real[i+1]) + B[1]
+        # second derivative of quadratic
+        d2 = 2 * B[0]
+        #calculate curvature 
+        k[i] += np.abs(d2) / ((1 + d1**2)**(2/3))
+
+    return k
+    
+k = quad_curvature(z_real, z_imag, n)
+# plot curvature
+
+fig, ax = plt.subplots()
+ax.plot(range(len(k)), k, label='quadratic curvature')
+ax.set_title('Quadratic Arifoil Curvature')
+ax.set_xlabel('Distance Along Curve')
+ax.set_ylabel('Curvature')
+plt.show()
+
+#define curvature with osculating circles
+def circle_curvature(z_real, z_imag):
+    
+    dx = z_real[1:] - z_real[:-1]
+    dy = z_imag[1:] - z_imag[:-1]
+    l  = np.sqrt(dx**2 + dy**2)
+
+    for i in range(n): 
+        p1 = np.array([[z_real[i+1]],
+                       [z_imag[i+1]]])
+        
+        #find midpoint between point 0 and 1
+        m1x = z_real[i+1] - z_real[i]
+        m1y = z_imag[i+1] - z_imag[i]
+
+        #find midpoint between point 0 and 1
+        m2x = z_real[i+2] - z_real[i+1]
+        m2y = z_imag[i+2] - z_imag[i+1]
+
+        # outward normal vector at each midpoint
+        
+        #find interscetion of each normal vector
+
+        # find radius 
+        r = np.abs(c - p1)
+        #calculate curvature
+        k = 1/ r
