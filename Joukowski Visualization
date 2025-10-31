@@ -15,15 +15,30 @@ R = 1.0  # Radius of the circular cylinder in the zeta plane
 xi0 = -0.09 # Real center "x"  drives thickness
 eta0 = 0.1 # Imaginary center "y" drives camber/symetry 
 eps = R - np.sqrt(R**2 - eta0**2) - xi0 # Eccentricity parameter  drives trailing edge sharpness
+V_inf = 10          # freestream velocity 
+a = np.radians(0)
 
-def transform_joukowski_cylinder(n, R, xi0, eta0, eps):
+gamma_k = 4 * np.pi * V_inf * (np.sqrt(R**2 - eta0**2)*np.sin(a) + eta0*np.cos(a)) #Kutta circulation Eq 45
+
+if abs(gamma_k) <= (4 * np.pi * V_inf * R):
+    theta_stag_aft = a - np.arcsin(gamma_k / (4 * np.pi * V_inf * R))
+    theta_stag_fwd = np.pi - theta_stag_aft + 2 * a
+else:
+    theta_stag_fwd = a - np.arcsin(gamma_k / (4 * np.pi * V_inf * R))
+    theta_stag_aft = np.pi - theta_stag_fwd + 2 * a
+
+xi_stag_aft = R * np.exp(1j * theta_stag_aft) + xi0
+xi_stag_fwd = R * np.exp(1j * theta_stag_fwd) + xi0
+
+def transform_joukowski_cylinder(n, R, xi0, eta0, eps, theta_stag_aft):
     
     # Define the center of the circular cylinder in the ζ-plane (Eq. 19)
     zeta_0 = xi0 + 1j * eta0
     
     # Create an array of angles (θ) to parameterize the circle
-    theta = np.linspace(0, 2 * np.pi, n)
-    
+    theta = np.linspace(0, 2*np.pi, n)
+    theta = theta + theta_stag_aft
+
     # Define the surface of the circular cylinder in the ζ-plane (Eq. 20)
     zeta_surface = R * np.exp(1j * theta) + zeta_0
     
@@ -33,7 +48,7 @@ def transform_joukowski_cylinder(n, R, xi0, eta0, eps):
     return zeta_surface, z_surface
 
 # Perform the transformation
-zeta_surface, z_surface = transform_joukowski_cylinder(n, R, xi0, eta0, eps)
+zeta_surface, z_surface = transform_joukowski_cylinder(n, R, xi0, eta0, eps, theta_stag_aft)
 
 # Separate real and imaginary parts for analysis or plotting
 z_real_0 = z_surface.real
