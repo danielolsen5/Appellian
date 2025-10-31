@@ -159,18 +159,28 @@ def circle_curvature(z_real, z_imag):
     l  = np.sqrt(dx**2 + dy**2)
 
     for i in range(n): 
+        p0 = np.array([[z_real[i]],
+                       [z_imag[i]]])
+        
         p1 = np.array([[z_real[i+1]],
                        [z_imag[i+1]]])
         
+        p2 = np.array([[z_real[i+2]],
+                       [z_imag[i+2]]])
+        
         #find midpoint between point 0 and 1
-        m1x = z_real[i+1] - z_real[i]
-        m1y = z_imag[i+1] - z_imag[i]
+        m1 = (p0 + p1)/2
 
-        #find midpoint between point 0 and 1
-        m2x = z_real[i+2] - z_real[i+1]
-        m2y = z_imag[i+2] - z_imag[i+1]
+        #find midpoint between point 1 and 2
+        m2 = (p1 + p2)/2
+
+        # direction between points
+        v1 = p1 - p0
+        v2 = p2 - p0
 
         # outward normal vector at each midpoint
+        n1 = np.array([v1[1], v1[0]])
+        n2 = np.array([v1[1], v1[0]])
         
         #find interscetion of each normal vector
 
