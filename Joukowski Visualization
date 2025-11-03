@@ -9,6 +9,7 @@ Joukowski airfoil generation
 Debug = False #toggle debug outputs
 Plot = True #toggle plotting airfoils
 Export = False #toggle export file
+number = True # toggle printing the position of each airfoil point
 
 n = 200  # Number of points 
 R = 1.0  # Radius of the circular cylinder in the zeta plane
@@ -34,6 +35,8 @@ def transform_joukowski_cylinder(n, R, xi0, eta0, eps, theta_stag_aft):
     
     # Define the center of the circular cylinder in the ζ-plane (Eq. 19)
     zeta_0 = xi0 + 1j * eta0
+    
+    # define line on x axis that extends to the cylinder 
     
     # Create an array of angles (θ) to parameterize the circle
     theta = np.linspace(0, 2*np.pi, n)
@@ -89,19 +92,35 @@ if Plot:
     fig, ax = plt.subplots()
 
     # Cylinder in ζ-plane
-    ax.plot(zeta_surface.real, zeta_surface.imag, 'r', label='Cylinder (ζ-plane)')
+    zeta_r = zeta_surface.real
+    zeta_i = zeta_surface.imag
+    ax.plot(zeta_r, zeta_i, 'r', label='Cylinder (ζ-plane)')
+    if number:
+        #plot array position by point 
+
+        for i, (zeta_ri, zeta_ii) in enumerate(zip(zeta_r, zeta_i)):
+            if i % 25 == 0:
+                plt.text(zeta_ri, zeta_ii, f'{i}', fontsize=9, ha='left', va='bottom')
 
     # Transformed airfoil in z-plane
     ax.plot(z_real_0, z_imag_0, 'b', label='Joukowski Airfoil (z-plane)')
 
     # scaled airfoil in z-plane
     ax.plot(z_real, z_imag, 'c', label='scaled Airfoil (z-plane)')
+    if number:
+        #plot array position by point 
+
+        for i, (z_reali, z_imagi) in enumerate(zip(z_real, z_imag)):
+            if i % 25 == 0:
+                plt.text(z_reali, z_imagi, f'{i}', fontsize=9, ha='left', va='bottom')
+
+    ax.plot()
 
     ax.set_title('Cylinder and Joukowski Airfoil')
     ax.set_xlabel('Real Part')
     ax.set_ylabel('Imaginary Part')
     ax.set_aspect('equal', adjustable='box')
-    ax.legend()
+    #ax.legend()
     plt.show()
     
     #output txt file 
@@ -141,7 +160,7 @@ def quad_curvature(z_real, z_imag, n):
 
     return k
     
-kq = quad_curvature(z_real, z_imag, n)
+kq = 1 / quad_curvature(z_real, z_imag, n)
 # plot curvature
 
 fig, ax = plt.subplots()
@@ -153,20 +172,16 @@ plt.show()
 
 #define curvature with osculating circles
 def circle_curvature(z_real, z_imag):
-    
+    n = len(z_real)
+    kc = []
     dx = z_real[1:] - z_real[:-1]
     dy = z_imag[1:] - z_imag[:-1]
     l  = np.sqrt(dx**2 + dy**2)
 
-    for i in range(n): 
-        p0 = np.array([[z_real[i]],
-                       [z_imag[i]]])
-        
-        p1 = np.array([[z_real[i+1]],
-                       [z_imag[i+1]]])
-        
-        p2 = np.array([[z_real[i+2]],
-                       [z_imag[i+2]]])
+    for i in range(n-2): 
+        p0 = np.array([z_real[i], z_imag[i]])
+        p1 = np.array([z_real[i + 1], z_imag[i + 1]])
+        p2 = np.array([z_real[i + 2], z_imag[i + 2]])
         
         #find midpoint between point 0 and 1
         m1 = (p0 + p1)/2
@@ -179,30 +194,32 @@ def circle_curvature(z_real, z_imag):
         v2 = p2 - p0
 
         # outward normal vector at each midpoint
-        n1 = np.array([v1[1], v1[0]])
-        n2 = np.array([v1[1], v1[0]])
+        n1 = np.array([-v1[1], v1[0]])
+        n2 = np.array([-v2[1], v2[0]])
         
-        #find interscetion of each normal vector
-        h = .01 #step for extending vector
-        for j in range(300):
-            p0_new = p0 + ((h * n1) / np.linalg.norm(n1))
-            p2_new = p0 + ((h * n1) / np.linalg.norm(n1))
-            #end if points are within .01% of eachother 
-            if np.abs((p0_new - p2_new)/p0_new) <= .0001:
-                break
-            else:
-                continue
+        #find intersection
+        A = np.column_stack((n1, -n2))
+        b = m2 - m1
 
-        # find radius 
-        #x component of radius
-        xr = np.abs(p2[:-1] - p0_new[:-1])
-        #y component of radius
-        yr = np.abs(p2[1:] - p0_new[1:])
-        r = np.sqrt(xr**2 + yr**2)
-        #calculate curvature
-        kc = 1/ r
+        try:
+            t = np.linalg.solve(A, b)
+        except np.linalg.LinAlgError:
+            kc.append(0)
+            continue
+
+        c = m1 + t[0] * n1 #center
+
+        r = np.linalg.norm(c - p1)
+        if r == 0:
+            kc.append(0)
+        else:
+            kc.append(1/r)
+
+    return kc
 
 kc = circle_curvature(z_real, z_imag)
+maxk = np.argmax(kc)
+print("Leading Edge Location", maxk)
 
 fig, ax = plt.subplots()
 ax.plot(range(len(kc)), kc, label='Osculating Circles Curvature')
