@@ -141,11 +141,11 @@ def quad_curvature(z_real, z_imag, n):
 
     return k
     
-k = quad_curvature(z_real, z_imag, n)
+kq = quad_curvature(z_real, z_imag, n)
 # plot curvature
 
 fig, ax = plt.subplots()
-ax.plot(range(len(k)), k, label='quadratic curvature')
+ax.plot(range(len(kq)), kq, label='quadratic curvature')
 ax.set_title('Quadratic Arifoil Curvature')
 ax.set_xlabel('Distance Along Curve')
 ax.set_ylabel('Curvature')
@@ -183,8 +183,30 @@ def circle_curvature(z_real, z_imag):
         n2 = np.array([v1[1], v1[0]])
         
         #find interscetion of each normal vector
+        h = .01 #step for extending vector
+        for j in range(300):
+            p0_new = p0 + ((h * n1) / np.linalg.norm(n1))
+            p2_new = p0 + ((h * n1) / np.linalg.norm(n1))
+            #end if points are within .01% of eachother 
+            if np.abs((p0_new - p2_new)/p0_new) <= .0001:
+                break
+            else:
+                continue
 
         # find radius 
-        r = np.abs(c - p1)
+        #x component of radius
+        xr = np.abs(p2[:-1] - p0_new[:-1])
+        #y component of radius
+        yr = np.abs(p2[1:] - p0_new[1:])
+        r = np.sqrt(xr**2 + yr**2)
         #calculate curvature
-        k = 1/ r
+        kc = 1/ r
+
+kc = circle_curvature(z_real, z_imag)
+
+fig, ax = plt.subplots()
+ax.plot(range(len(kc)), kc, label='Osculating Circles Curvature')
+ax.set_title('Osculating Circles Arifoil Curvature')
+ax.set_xlabel('Distance Along Curve')
+ax.set_ylabel('Curvature')
+plt.show()
