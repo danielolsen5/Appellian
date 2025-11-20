@@ -67,4 +67,22 @@ plt.grid(True)
 plt.show()
 
 #output the airfoil
-np.savetxt(f"naca{NACA}.txt", np.column_stack((x, y)), fmt="%.6f")
+#np.savetxt(f"naca{NACA}.txt", np.column_stack((x, y)), fmt="%.6f")
+def distance(x,y, n):
+    x = np.asarray(x)
+    y = np.asarray(y)
+
+    dx = x[1:] - x[:-1]
+    dy = y[1:] - y[:-1]
+
+    d = np.sqrt(dx**2 + dy**2)
+    return d
+
+d = distance(x, y, n)
+
+fig, ax = plt.subplots()
+ax.plot(range(len(d)), d, label='distance between points')
+ax.set_title('Osculating Circles Arifoil Curvature')
+ax.set_xlabel('Distance Along Curve')
+ax.set_ylabel('distance between points')
+plt.show()
