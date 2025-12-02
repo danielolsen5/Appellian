@@ -49,13 +49,9 @@ def transform_joukowski_cylinder(n, R, xi0, eta0, eps, theta_stag_aft):
     print(np.degrees(theta_le))
     print(np.degrees(theta_te))
     
-    # Generate cosine-clustered theta distribution (0 to 2π)
+    # Generate theta distribution (0 to 2π)
     theta = np.linspace(0, 2 * np.pi, n)
-    #theta = theta_le + (theta_te - theta_le) * 0.5 * (1 - np.cos(beta))
     
-    #  include theta_le and theta_te, then sort to maintain order
-    theta = np.unique(np.sort(np.concatenate(([theta_le], theta, [theta_te]))))
-    # Define the surface of the circular cylinder in the ζ-plane (Eq. 20)
     zeta_surface = R * np.exp(1j * theta) + zeta_0
     
     # Apply the Joukowski transformation to the surface points (Eq. 18)
