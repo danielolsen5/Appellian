@@ -3,19 +3,18 @@ import matplotlib.pyplot as plt
 
 """
 Joukowski airfoil generation
-
 """
 
 Debug = False #toggle debug outputs
-Plot = False #toggle plotting airfoils
+Plot = True #toggle plotting airfoils
 Export = False #toggle export file
 number = False # toggle printing the position of each airfoil point
 curveature = False
 
 n = 200  # Number of points 
 R = 1.0  # Radius of the circular cylinder in the zeta plane
-xi0 = -0.09 # Real center "x"  drives thickness
-eta0 = 0.1 # Imaginary center "y" drives camber/symetry 
+xi0 = -0.109# Real center "x"  drives thickness
+eta0 = 0.2 # Imaginary center "y" drives camber/symetry 
 eps = R - np.sqrt(R**2 - eta0**2) - xi0 # Eccentricity parameter  drives trailing edge sharpness
 V_inf = 10          # freestream velocity 
 a = np.radians(0)
@@ -32,35 +31,99 @@ else:
 xi_stag_aft = R * np.exp(1j * theta_stag_aft) + xi0
 xi_stag_fwd = R * np.exp(1j * theta_stag_fwd) + xi0
  
+# --- CLUSTERING CONFIGURATION ---
+# 1: No clustering 
+# 2: Cosine clustering 
+# 3: Custom percentage clustering 
+clustering_method = 2 
 
+# Custom clustering perameters
+# Example: "Put 20% of points into the first 5% of the arc"
+custom_pct_points = 0.30  # Fraction of array indices (0.0 to 0.5)
+custom_pct_arc    = 0.05  # Fraction of physical arc length (0.0 to 0.5)
 
-def transform_joukowski_cylinder(n, R, xi0, eta0, eps, theta_stag_aft):
+def transform_joukowski_cylinder(n, R, xi0, eta0, eps, theta_stag_aft, 
+                                 method=2, custom_params=(0.2, 0.05)):
     
-    # Define the center of the circular cylinder in the ζ-plane (Eq. 19)
+    # Define the center of the circular cylinder in the ζ-plane
     zeta_0 = xi0 + 1j * eta0
     
     # Find x intercept of the cylinder in the zeta plane
     xl = xi0 - np.sqrt(R**2 - eta0**2) 
     xt = xi0 + np.sqrt(R**2 - eta0**2) 
     
-    theta_le = np.pi - np.arcsin(eta0/(xl - xi0)) # theta at leading edge
-    theta_te = -np.arcsin(-eta0/(xi0 -  xt)) # theta at trailing edge 
+    # Calculate geometric angles for Leading Edge (LE) and Trailing Edge (TE)
+    theta_le = np.pi - np.arcsin(eta0/(xl - xi0)) 
+    theta_te = -np.arcsin(-eta0/(xi0 -  xt)) 
     
-    print(np.degrees(theta_le))
-    print(np.degrees(theta_te))
+    print(f"Clustering Target LE: {np.degrees(theta_le):.2f}°")
+    print(f"Clustering Target TE: {np.degrees(theta_te):.2f}°")
     
-    # Generate theta distribution (0 to 2π)
-    theta = np.linspace(0, 2 * np.pi, n)
+    n_half = int(n / 2)
     
+    # uniform index steps from 0 to pi
+    beta = np.linspace(0, np.pi, n_half + 1)
+    
+    # 'dist' is the normalized position along the semi-circle (0.0 to 1.0)
+    # We alter the mapping of beta -> dist to change clustering
+    
+    if method == 1: # NO CLUSTERING
+        dist = beta / np.pi
+        
+    elif method == 2: # COSINE CLUSTERING
+        dist = (1 - np.cos(beta)) / 2
+        
+    elif method == 3: # CUSTOM PERCENTAGE
+        pct_pts, pct_arc = custom_params
+        
+        # Validate inputs
+        if pct_pts > 0.5 or pct_arc > 0.5:
+            print("Warning: Custom percentages overlap in center. Reverting to uniform.")
+            dist = beta / np.pi
+        else:
+            # create a piecewise linear map
+            # define 4 key points mapping Input% (Index) -> Output% (Angle)
+            # 1. Start (TE)
+            # 2. End of TE cluster
+            # 3. Start of LE cluster
+            # 4. End (LE)
+            
+            # Input vector (normalized index 0 to 1)
+            u = np.linspace(0, 1, n_half + 1)
+            
+            # Control points (x = index fraction, y = angle fraction)
+            xp = [0.0, pct_pts, 1.0 - pct_pts, 1.0]
+            yp = [0.0, pct_arc, 1.0 - pct_arc, 1.0]
+            
+            # Interpolate to find distribution
+            dist = np.interp(u, xp, yp)
+
+    # --- MAP NORMALIZED DIST TO GEOMETRY ---
+    
+    # Segment 1: Upper Surface (TE -> LE)
+    theta_upper = theta_te + (theta_le - theta_te) * dist
+    
+    # Segment 2: Lower Surface (LE -> TE) 
+    theta_lower = theta_le + (theta_te + 2*np.pi - theta_le) * dist
+    
+    # Combine and drop duplicate middle point
+    theta = np.concatenate((theta_upper[:-1], theta_lower))
+    
+    # Generate Cylinder Surface
     zeta_surface = R * np.exp(1j * theta) + zeta_0
     
-    # Apply the Joukowski transformation to the surface points (Eq. 18)
+    # Joukowski Transform
     z_surface = zeta_surface + (R - eps)**2 / zeta_surface
     
     return zeta_surface, z_surface
 
+
 # Perform the transformation
-zeta_surface, z_surface = transform_joukowski_cylinder(n, R, xi0, eta0, eps, theta_stag_aft) 
+zeta_surface, z_surface = transform_joukowski_cylinder(
+    n, R, xi0, eta0, eps, theta_stag_aft, 
+    method=clustering_method, 
+    custom_params=(custom_pct_points, custom_pct_arc)
+)
 
 # Separate real and imaginary parts
 z_real_0 = z_surface.real
@@ -100,49 +163,56 @@ if Debug:
     print("\nTransformed Imaginary Components (z_imag_0):\n", z_imag)
 
 if Plot:
+    
+    # clustering label
+    if clustering_method == 1:
+        clust_label = "Uniform Spacing"
+    elif clustering_method == 2:
+        clust_label = "Cosine Clustering"
+    elif clustering_method == 3:
+        # Show the specific percentages in the legend for clarity
+        clust_label = f"Custom: {custom_pct_points*100:.0f}% pts in {custom_pct_arc*100:.0f}% arc"
+    else:
+        clust_label = "Unknown Clustering"
+        
     #Visualization
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(10, 6))
 
     # Cylinder in ζ-plane
     zeta_r = zeta_surface.real
     zeta_i = zeta_surface.imag
-    ax.plot(zeta_r, zeta_i, 'r', label='Cylinder (ζ-plane)')
-    if number:
-        #plot array position by point 
+    
+    # Plot cylinder points to see source clustering
+    ax.scatter(zeta_r, zeta_i, color='r', s=10, marker='x', label='Cylinder Points (ζ-plane)')
 
+    if number:
         for i, (zeta_ri, zeta_ii) in enumerate(zip(zeta_r, zeta_i)):
             if i % 25 == 0:
                 plt.text(zeta_ri, zeta_ii, f'{i}', fontsize=9, ha='left', va='bottom')
 
-    # Transformed airfoil in z-plane
-    ax.plot(z_real_0, z_imag_0, 'b', label='Joukowski Airfoil (z-plane)')
+    # Transformed airfoil in z-plane (Scatter)
+    ax.scatter(z_real_0, z_imag_0, color='b', s=10, label=f'Joukowski Airfoil with ({clust_label})')
 
-    # scaled airfoil in z-plane
-    ax.plot(z_real, z_imag, 'c', label='scaled Airfoil (z-plane)')
     if number:
-        #plot array position by point 
-
         for i, (z_reali, z_imagi) in enumerate(zip(z_real, z_imag)):
             if i % 25 == 0:
                 plt.text(z_reali, z_imagi, f'{i}', fontsize=9, ha='left', va='bottom')
 
-    ax.plot()
-
-    ax.set_title('Cylinder and Joukowski Airfoil')
+    ax.set_title('Cylinder and Joukowski Airfoil Point Distribution')
     ax.set_xlabel('Real Part')
     ax.set_ylabel('Imaginary Part')
     ax.set_aspect('equal', adjustable='box')
-    #ax.legend()
+    ax.legend()
+    plt.grid(True, linestyle=':', alpha=0.6)
     plt.show()
     
     #output txt file 
-    
     if Export:
         np.savetxt("output.txt", np.column_stack((z_real, z_imag)), fmt="%.6f")
-    
-    """
-    Define curvature along the airfoil
-    """
+        
+"""
+Define curvature along the airfoil
+"""
 if curveature:
 #define curvature with quadratic
     def quad_curvature(z_real_0, z_imag_0, n):
@@ -246,7 +316,7 @@ if curveature:
     plt.show()
 
 """
-clustering    
+distance
 """
 
 def distance(z_real_f, z_imag_f, n):
@@ -263,7 +333,7 @@ d = distance(z_real_f, z_imag_f, n)
 
 fig, ax = plt.subplots()
 ax.plot(range(len(d)), d, label='distance between points')
-ax.set_title('Osculating Circles Arifoil Curvature')
+ax.set_title('distance between points')
 ax.set_xlabel('Distance Along Curve')
 ax.set_ylabel('distance between points')
 plt.show()
