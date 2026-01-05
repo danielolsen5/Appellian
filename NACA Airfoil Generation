@@ -50,15 +50,15 @@ y_l = y_c - y_t*np.cos(theta)
 x_u = x - y_t*np.sin(theta)
 x_l = x + y_t*np.sin(theta)
 
-x = np.concatenate((np.flip(x_u), x_l[1:]))
+x1 = np.concatenate((np.flip(x_u), x_l[1:]))
 y = np.concatenate((np.flip(y_u), y_l[1:]))
 
-print("x", x)
+print("x", x1)
 print("y", y)
 
 # Plotting the airfoil
 plt.figure(figsize=(10, 2))
-plt.plot(x, y, 'b-')
+plt.scatter(x1, y, s=2)
 plt.title(f'NACA {NACA} Airfoil')
 plt.xlabel('x/c')
 plt.ylabel('y/c')
@@ -67,4 +67,40 @@ plt.grid(True)
 plt.show()
 
 #output the airfoil
-np.savetxt(f"naca{NACA}.txt", np.column_stack((x, y)), fmt="%.6f")
+#np.savetxt(f"naca{NACA}.txt", np.column_stack((x, y)), fmt="%.6f")
+
+def distance1(n, x1,y):
+    x = np.asarray(x1)
+    y = np.asarray(y)
+
+    dx = x1[:1] - x1[:-1]
+    dy = y[:1] - y[:-1]
+
+    d1 = np.sqrt(dx**2 + dy**2)
+
+    return d1
+d1 = distance1(n,x1,y)
+
+def distance(n, x):
+    x = np.asarray(x)
+
+    dx = x[:1] - x[:-1]
+
+    d = dx
+
+    return d
+
+d = distance(n,x)
+fig, ax = plt.subplots()
+ax.plot(range(len(d)), d, label='distance between points x from clustering')
+ax.set_title("distance between points")
+ax.set_xlabel('distance along curve')
+ax.set_ylabel('distance between points')
+plt.show()
+
+fig, ax = plt.subplots()
+ax.plot(range(len(d1)), d1, label='distance between points final x')
+ax.set_title("distance between points")
+ax.set_xlabel('distance along curve')
+ax.set_ylabel('distance between points')
+plt.show()
