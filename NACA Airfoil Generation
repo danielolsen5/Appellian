@@ -1,16 +1,18 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+Output = False
+
 NACA = input("Enter NACA 4 digit code: ")
 M = int(NACA[0]) / 100 # camber
 P = int(NACA[1]) / 10 # max camber position
 T = int(NACA[2:]) / 100 # thickness
 
 n = 200 #number of points
-C = 2#input("Enter 1 for open section or 2 for closed: ")
+C = input("Enter 1 for open section or 2 for closed: ")
 
 # apply correct coefficient for open or closed profile
-if C < 2:
+if C == 1:
     # open airfoil coefficients 
     a_0 = .2969
     a_1 = -.126
@@ -67,40 +69,28 @@ plt.grid(True)
 plt.show()
 
 #output the airfoil
-np.savetxt(f"naca{NACA}.txt", np.column_stack((x, y)), fmt="%.6f")
+if Output:
+    np.savetxt(f"naca{NACA}.txt", np.column_stack((x, y)), fmt="%.6f")
 
-def distance1(n, x1,y):
-    x = np.asarray(x1)
+"""
+distance
+"""
+
+def distance(x1, y, n):
+    x1 = np.asarray(x1)
     y = np.asarray(y)
 
-    dx = x1[:1] - x1[:-1]
-    dy = y[:1] - y[:-1]
+    dx = x1[1:] - x1[:-1]
+    dy = y[1:] - y[:-1]
 
-    d1 = np.sqrt(dx**2 + dy**2)
-
-    return d1
-d1 = distance1(n,x1,y)
-
-def distance(n, x):
-    x = np.asarray(x)
-
-    dx = x[:1] - x[:-1]
-
-    d = dx
-
+    d = np.sqrt(dx**2 + dy**2)
     return d
 
-d = distance(n,x)
-fig, ax = plt.subplots()
-ax.plot(range(len(d)), d, label='distance between points x from clustering')
-ax.set_title("distance between points")
-ax.set_xlabel('distance along curve')
-ax.set_ylabel('distance between points')
-plt.show()
+d = distance(x1, y, n)
 
 fig, ax = plt.subplots()
-ax.plot(range(len(d1)), d1, label='distance between points final x')
-ax.set_title("distance between points")
-ax.set_xlabel('distance along curve')
+ax.plot(range(len(d)), d, label='distance between points')
+ax.set_title('distance between points')
+ax.set_xlabel('Distance Along Curve')
 ax.set_ylabel('distance between points')
 plt.show()
