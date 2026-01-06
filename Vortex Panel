@@ -341,21 +341,3 @@ if Print:
     C_qc = C_mle + (.25 * C_L)
     print(f"Quarter Chord Moment Coefficient: {C_qc:.5f}")
     
-    
-"""
-Apply Appellian
-"""
-   
-def appellian(x,y):
-    for i in range(n):
-        delx = .01 # x step
-        dely = delx # y step
-        # outward unit normal at control point i 
-        nx = dx[i] / l[i]
-        ny = -dy[i] / l[i]
-            
-        # compute partial derivatives            
-        duxx = (u[x[i+1]]*delx**2)  #58
-        duxy = #59
-        duyx = #60
-        duyy = #61
