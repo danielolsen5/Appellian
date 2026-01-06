@@ -67,7 +67,7 @@ plt.grid(True)
 plt.show()
 
 #output the airfoil
-#np.savetxt(f"naca{NACA}.txt", np.column_stack((x, y)), fmt="%.6f")
+np.savetxt(f"naca{NACA}.txt", np.column_stack((x, y)), fmt="%.6f")
 
 def distance1(n, x1,y):
     x = np.asarray(x1)
