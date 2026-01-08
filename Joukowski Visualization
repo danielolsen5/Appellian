@@ -21,11 +21,11 @@ clustering_method = 2
 smoothing_factor = .6
 
 # Geometry Parameters
-n = 200 # number of points
+n = 400 # number of points
 rho = 1.225 # density
 R = 1.0       # Radius of cylinder
 xi0 = -0.10  # Real center "x" (thickness)
-eta0 = 0.19   # Imaginary center "y" (camber)
+eta0 = 0   # Imaginary center "y" (camber)
 eps = R - np.sqrt(R**2 - eta0**2) - xi0 # Eccentricity (TE sharpness)
 V_inf = 10    # Freestream velocity 
 alpha = np.radians(0) # Angle of attack
