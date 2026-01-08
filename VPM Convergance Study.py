@@ -23,12 +23,16 @@ eps = R - np.sqrt(R**2 - eta0**2) - xi0 # Eccentricity (TE sharpness)
 V_inf = 10    # Freestream velocity 
 alpha = np.radians(5) # Angle of attack
 
-for i in range(2):
+q = 10 #number of point jumps
+e_abs = np.array([])
+n_i = np.array([])
+for i in range(q):
     """
     Joukowski Airfoil Generation
     """
 # Geometry Parameters
-    n = 50 * (2**i) # number of points
+    n = 10 * (2**i) # number of points
+    n_i = np.append(n_i, 10 * (2**i))
 
 # Geometric Angles for Leading Edge (LE) and Trailing Edge (TE)
     xl = xi0 - np.sqrt(R**2 - eta0**2) 
@@ -271,28 +275,17 @@ for i in range(2):
 
 #print("del z: ", del_z)
 #print("vpm chord: ", c_vpm)
-    print("Kutta Joukowski Lift: ", C_Lkj)
+#print("Kutta Joukowski Lift: ", C_Lkj)
 #print("gamma_K: ", gamma_k)
-    e=np.zeros(i)
-    e = np.abs(((C_L - C_Lkj) / C_L) * 100)
-    print("percent error: ", e)
-
-
-# Section lift 1.6.32
-    def calculate_lift_coefficient(l, gamma, c, V_inf):
-
-        C_L = 0  # Initialize the lift coefficient 
-        n = len(l)
-
-    # Loop through each segment from i=0 to n-1
-        for i in range(n):
-            segment_contribution = (l[i] / c) * ((gamma[i] + gamma[i+1]) / V_inf)
-            C_L += segment_contribution  # Add the segment's contribution to the total
-        return C_L
-
+    e_abs = np.append(e_abs, np.abs(((C_L - C_Lkj) / C_L) * 100))
+    
+print("percent error: ", e_abs)
+print(n_i)
 plt.figure()
-plt.scatter(n, e, color='b', s=10, label='Absolute Error for S= 0.6')
-plt.title("Curvature Estimation")
+plt.xscale('log')
+plt.yscale('log')
+plt.scatter(n_i, e_abs, color='b', s=10, label='Absolute Error')
+plt.title("Absolute Error for S=0.6")
 plt.xlabel("Number of Points")
 plt.ylabel("Absolute Error")
 plt.show()
