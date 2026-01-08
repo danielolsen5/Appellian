@@ -36,9 +36,6 @@ xt = xi0 + np.sqrt(R**2 - eta0**2)
 theta_le = np.pi - np.arcsin(eta0/(xl - xi0)) 
 theta_te = -np.arcsin(-eta0/(xi0 -  xt)) 
 
-print("theta LE", theta_le)
-print("theta TE", theta_te)
-
 # Point Distribution Settings
 l_u = R * np.abs((theta_le-theta_te)) # length of upper surface in zeta plane
 l_t = np.pi * 2 * R # circumfrance in zeta
@@ -46,9 +43,6 @@ p_u = l_u/l_t
 n_upper = p_u * n # scale number of points on the upper surface with its length
 n_upper = round(n_upper) # force n_upper to be a whole number
 n_lower = n - n_upper # Points on lower surface
-print("l_u", l_u)
-print("P_T", p_u)
-print("n_upper", n_upper)
 
 # --- AERODYNAMIC CALCULATIONS ---
 gamma_k = 4 * np.pi * V_inf * (np.sqrt(R**2 - eta0**2)*np.sin(alpha) + eta0*np.cos(alpha))

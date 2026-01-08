@@ -6,7 +6,7 @@ Joukowski Airfoil Generation
 """
 
 # --- CONFIGURATION ---
-Debug = True       # Toggle debug outputs
+Debug = False       # Toggle debug outputs
 Plot = True         # Toggle plotting
 Export = False      # Toggle export to file
 Number = False      # Toggle printing point indices on plot
@@ -25,11 +25,10 @@ n = 200 # number of points
 rho = 1.225 # density
 R = 1.0       # Radius of cylinder
 xi0 = -0.10  # Real center "x" (thickness)
-eta0 = 0.01   # Imaginary center "y" (camber)
+eta0 = 0.19   # Imaginary center "y" (camber)
 eps = R - np.sqrt(R**2 - eta0**2) - xi0 # Eccentricity (TE sharpness)
 V_inf = 10    # Freestream velocity 
 alpha = np.radians(0) # Angle of attack
-
 
 # Geometric Angles for Leading Edge (LE) and Trailing Edge (TE)
 xl = xi0 - np.sqrt(R**2 - eta0**2) 
@@ -38,16 +37,12 @@ theta_le = np.pi - np.arcsin(eta0/(xl - xi0))
 theta_te = -np.arcsin(-eta0/(xi0 -  xt)) 
 
 # Point Distribution Settings
-l_u = np.abs(R * (xl-xt)) # length of upper surface in seta plane
+l_u = R * np.abs((theta_le-theta_te)) # length of upper surface in zeta plane
 l_t = np.pi * 2 * R # circumfrance in zeta
 p_u = l_u/l_t
 n_upper = p_u * n # scale number of points on the upper surface with its length
 n_upper = round(n_upper) # force n_upper to be a whole number
 n_lower = n - n_upper # Points on lower surface
-
-if Debug:
-        print(f"Target LE Angle: {np.degrees(theta_le):.2f}°")
-        print(f"Target TE Angle: {np.degrees(theta_te):.2f}°")
 
 # --- AERODYNAMIC CALCULATIONS ---
 gamma_k = 4 * np.pi * V_inf * (np.sqrt(R**2 - eta0**2)*np.sin(alpha) + eta0*np.cos(alpha))
