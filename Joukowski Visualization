@@ -12,25 +12,43 @@ Export = False      # Toggle export to file
 Number = False      # Toggle printing point indices on plot
 Curvature = False   # Toggle curvature calculation/plotting
 
-# Point Distribution Settings
-n_upper = 112       # Points on upper surface
-n_lower = 88       # Points on lower surface
-
 # Clustering Settings
 # 1: No clustering (Uniform)
 # 2: Cosine clustering 
 clustering_method = 2 
 
 # Smoothing Factor (0.0 to 1.0)
-smoothing_factor = 0.6
+smoothing_factor = .6
 
 # Geometry Parameters
+n = 200 # number of points
+rho = 1.225 # density
 R = 1.0       # Radius of cylinder
-xi0 = -0.109  # Real center "x" (thickness)
-eta0 = 0.2    # Imaginary center "y" (camber)
+xi0 = -0.10  # Real center "x" (thickness)
+eta0 = 0.19   # Imaginary center "y" (camber)
 eps = R - np.sqrt(R**2 - eta0**2) - xi0 # Eccentricity (TE sharpness)
 V_inf = 10    # Freestream velocity 
 alpha = np.radians(0) # Angle of attack
+
+# Geometric Angles for Leading Edge (LE) and Trailing Edge (TE)
+xl = xi0 - np.sqrt(R**2 - eta0**2) 
+xt = xi0 + np.sqrt(R**2 - eta0**2) 
+theta_le = np.pi - np.arcsin(eta0/(xl - xi0)) 
+theta_te = -np.arcsin(-eta0/(xi0 -  xt)) 
+
+print("theta LE", theta_le)
+print("theta TE", theta_te)
+
+# Point Distribution Settings
+l_u = R * np.abs((theta_le-theta_te)) # length of upper surface in zeta plane
+l_t = np.pi * 2 * R # circumfrance in zeta
+p_u = l_u/l_t
+n_upper = p_u * n # scale number of points on the upper surface with its length
+n_upper = round(n_upper) # force n_upper to be a whole number
+n_lower = n - n_upper # Points on lower surface
+print("l_u", l_u)
+print("P_T", p_u)
+print("n_upper", n_upper)
 
 # --- AERODYNAMIC CALCULATIONS ---
 gamma_k = 4 * np.pi * V_inf * (np.sqrt(R**2 - eta0**2)*np.sin(alpha) + eta0*np.cos(alpha))
@@ -42,25 +60,15 @@ else:
     theta_stag_fwd = alpha - np.arcsin(gamma_k / (4 * np.pi * V_inf * R))
     theta_stag_aft = np.pi - theta_stag_fwd + 2 * alpha
 
-
 # --- MAIN TRANSFORM FUNCTION ---
 def transform_joukowski_cylinder(n_up, n_lo, R, xi0, eta0, eps, 
                                  method=2, smoothing=0.0):
-    
     # Cylinder Center
     zeta_0 = xi0 + 1j * eta0
-    
-    # Cylinder Intercepts
-    xl = xi0 - np.sqrt(R**2 - eta0**2) 
-    xt = xi0 + np.sqrt(R**2 - eta0**2) 
     
     # Geometric Angles for Leading Edge (LE) and Trailing Edge (TE)
     theta_le = np.pi - np.arcsin(eta0/(xl - xi0)) 
     theta_te = -np.arcsin(-eta0/(xi0 -  xt)) 
-    
-    if Debug:
-        print(f"Target LE Angle: {np.degrees(theta_le):.2f}°")
-        print(f"Target TE Angle: {np.degrees(theta_te):.2f}°")
     
     # --- DISTRIBUTION GENERATOR ---
     def get_distribution(num_points, method_type, w_smooth):
@@ -136,6 +144,11 @@ chord_scale = 1.0 / np.max(z_real_shifted)
 z_real = z_real_shifted[::-1] * chord_scale # Flip to clockwise
 z_imag = z_imag_raw[::-1] * chord_scale     # Flip to clockwise
 
+#leading edge point
+z_le_r = z_real[n_lower]
+z_le_i = z_imag[n_lower]
+
+
 if Debug:
     print(f"Total Points: {len(z_real)}")
     print(f"Chord Scale: {chord_scale:.4f}")
@@ -157,6 +170,7 @@ if Plot:
     ax1 = fig.add_subplot(2, 1, 1)
     label_txt = f"Joukowski (Up:{n_upper}, Low:{n_lower})\nMethod: {clustering_method}, Smooth: {smoothing_factor}"
     ax1.plot(z_real, z_imag, 'b-', label='Surface')
+    ax1.scatter(z_le_r, z_le_i, color='r', s=40, label='Leading Edge')
     ax1.scatter(z_real, z_imag, color='b', s=10, label='Nodes')
     
     if Number:
