@@ -232,13 +232,10 @@ if Curvature:
         return num / den if den > 1e-9 else 0
 
     # 1. Initial Search: Find index of max discrete curvature
-    # Re-using your k_vals logic
     def calc_curvature(x, y):
-        # ... (Your existing osculating circle code here) ...
-        # [Keeping it brief for the snippet]
         pass 
 
-    # 2. Iterative Process (Optimization)
+    # 2. Iterative Optimization
     # We target the Leading Edge area: theta is near pi
     # Minimize the negative curvature to find the maximum
     result = minimize_scalar(lambda t: -curvature_at_theta(t), 
@@ -289,11 +286,63 @@ def arc_length_integrand(t):
 true_len_upper, _ = quad(arc_length_integrand, theta_te, theta_le)
 true_len_lower, _ = quad(arc_length_integrand, theta_le, theta_te + 2*np.pi)
 
-print(f"True Upper Surface Length: {true_len_upper:.6f}")
-print(f"True Lower Surface Length: {true_len_lower:.6f}")
+#print(f"True Upper Surface Length: {true_len_upper:.6f}")
+#print(f"True Lower Surface Length: {true_len_lower:.6f}")
+
+def length_clustering(true_len_upper, true_len_lower, n):
+    total_len = true_len_lower + true_len_upper
+    percent_upper = true_len_upper / total_len
+    n_upper = percent_upper * n # scale number of points on the upper surface with its length
+    n_upper = round(n_upper) # force n_upper to be a whole number
+    n_lower = n - n_upper # Points on lower surface
+    
+    # define 
+    i = np.arange(n_upper + 1)
+    s_upper = (true_len_upper / 4) * (1 - np.cos((i * np.pi) / n_upper))
+    
+    j = np.arange(n_lower +1)
+    s_lower = (true_len_lower / 4) * (1 - np.cos((j * np.pi) / n_lower))
+    return s_upper, s_lower
+
+s_upper, s_lower = length_clustering(true_len_upper, true_len_lower, n)
+
+c=1
+
+def generate_joukowski_z_plane(s_upper, s_lower, true_len_upper, true_len_lower, c, xi0, eta0):
+    # 1. Map s to theta (0 to pi for upper, pi to 2pi for lower)
+    # normalize s/len to map it to the 180-degree arc
+    theta_upper = (s_upper / true_len_upper) * np.pi
+    theta_lower = np.pi + (s_lower / true_len_lower) * np.pi
+    
+    all_theta = np.concatenate([theta_upper, theta_lower])
+    
+    # 2. Define the circle in the zeta plane
+    # R is calculated to ensure the circle hits the Trailing Edge at zeta = c
+    R = np.sqrt((c - xi0)**2 + eta0**2)
+    
+    # Center of circle
+    mu = xi0 + 1j * eta0
+    
+    # Coordinates in the zeta plane (the circle)
+    # Note: subtract theta because standard Joukowski flows clockwise 
+    # from TE(0) -> LE(pi) -> TE(2pi)
+    zeta = mu + R * np.exp(1j * all_theta)
+    
+    # 3. Apply the Joukowski Transformation to get z-plane points
+    z = zeta + (c**2 / zeta)
+    
+    return z_real, z_imag
+
+z_real, z_imag = generate_joukowski_z_plane(s_upper, s_lower, true_len_upper, true_len_lower, c, xi0, eta0)
+
+plt.plot(z_real, z_imag, 'g-', label='Airfoil Points')
+plt.title("Consine Clustered in Z")
+plt.legend()
+plt.show()
 
 
-def fit_camber():
+
+#def fit_camber():
     #define leading edge point
     #define trailing edge point
     #find midpoint of flat "camber" line
