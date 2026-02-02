@@ -15,7 +15,7 @@ clustering_method = 2
 rho = 1.225 # density
 R = 1.0       # Radius of cylinder
 xi0 = -0.10  # Real center "x" (thickness)
-eta0 = 0.01   # Imaginary center "y" (camber)
+eta0 = 0.09   # Imaginary center "y" (camber)
 eps = R - np.sqrt(R**2 - eta0**2) - xi0 # Eccentricity (TE sharpness)
 V_inf = 10    # Freestream velocity 
 alpha = np.radians(5) # Angle of attack
@@ -28,12 +28,13 @@ plt.title("Convergence for Varying Smoothing Factors (0 to 1)")
 plt.xlabel("Number of Points")
 plt.ylabel("Absolute Error (%)")
 
+
 # Increment smoothing factor from 0 to 1 with n steps
 n_steps = 4
 smoothing_values = np.linspace(0, 1, n_steps)
 
 for smoothing_factor in smoothing_values:
-    q = 6 # number of point jumps
+    q = 10 # number of point jumps
     e_abs = np.array([])
     n_i = np.array([])
     

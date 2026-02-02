@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.optimize import minimize_scalar
 
 """
 Joukowski Airfoil Generation
@@ -10,7 +11,7 @@ Debug = False       # Toggle debug outputs
 Plot = True         # Toggle plotting
 Export = False      # Toggle export to file
 Number = False      # Toggle printing point indices on plot
-Curvature = False   # Toggle curvature calculation/plotting
+Curvature = True   # Toggle curvature calculation/plotting
 
 # Clustering Settings
 # 1: No clustering (Uniform)
@@ -25,7 +26,7 @@ n = 400 # number of points
 rho = 1.225 # density
 R = 1.0       # Radius of cylinder
 xi0 = -0.10  # Real center "x" (thickness)
-eta0 = 0   # Imaginary center "y" (camber)
+eta0 = 0.2   # Imaginary center "y" (camber)
 eps = R - np.sqrt(R**2 - eta0**2) - xi0 # Eccentricity (TE sharpness)
 V_inf = 10    # Freestream velocity 
 alpha = np.radians(0) # Angle of attack
@@ -196,44 +197,106 @@ if Export:
     print("Coordinates exported to output.txt")
 
 # --- CURVATURE  ---
-if Curvature:
-    # Osculating Circle Curvature implementation
-    def calc_curvature(x, y):
-        k = []
-        n_pts = len(x)
-        # check 3 points avsilable 
-        if n_pts < 3: return np.zeros(n_pts)
-        
-        for i in range(n_pts - 2):
-            p0 = np.array([x[i], y[i]])
-            p1 = np.array([x[i+1], y[i+1]])
-            p2 = np.array([x[i+2], y[i+2]])
-            
-            # Midpoints
-            m1 = (p0 + p1)/2
-            m2 = (p1 + p2)/2
-            
-            # Perpendicular vectors
-            v1 = p1 - p0; n1 = np.array([-v1[1], v1[0]])
-            v2 = p2 - p1; n2 = np.array([-v2[1], v2[0]]) # Fixed vector logic
-            
-            # Intersect
-            A = np.column_stack((n1, -n2))
-            b = m2 - m1
-            try:
-                t = np.linalg.solve(A, b)
-                center = m1 + t[0]*n1
-                r = np.linalg.norm(center - p1)
-                k.append(1.0/r if r > 1e-6 else 0)
-            except:
-                k.append(0)
-        return np.array(k)
 
-    k_vals = calc_curvature(z_real, z_imag)
+if Curvature:
+    def get_point_at_theta(t):
+        """Helper to get a single (x, y) point for a given theta."""
+        zeta = R * np.exp(1j * t) + (xi0 + 1j * eta0)
+        z = zeta + (R - eps)**2 / zeta
+        # Normalize/Scale as per your main script
+        x = (z.real + abs(x_min)) * chord_scale
+        y = z.imag * chord_scale
+        return x, y
+
+    def curvature_at_theta(t):
+        """
+        Calculates exact curvature at any angle theta using 1st and 2nd derivatives.
+        Formula: k = |x'y'' - y'x''| / (x'^2 + y'^2)^(3/2)
+        """
+        dt = 1e-5 # Small step for finite difference
+        
+        # Central difference for derivatives
+        p_m1 = get_point_at_theta(t - dt)
+        p_0  = get_point_at_theta(t)
+        p_p1 = get_point_at_theta(t + dt)
+        
+        dx = (p_p1[0] - p_m1[0]) / (2 * dt)
+        dy = (p_p1[1] - p_m1[1]) / (2 * dt)
+        
+        d2x = (p_p1[0] - 2*p_0[0] + p_m1[0]) / (dt**2)
+        d2y = (p_p1[1] - 2*p_0[1] + p_m1[1]) / (dt**2)
+        
+        num = np.abs(dx * d2y - dy * d2x)
+        den = (dx**2 + dy**2)**(1.5)
+        
+        return num / den if den > 1e-9 else 0
+
+    # 1. Initial Search: Find index of max discrete curvature
+    # Re-using your k_vals logic
+    def calc_curvature(x, y):
+        # ... (Your existing osculating circle code here) ...
+        # [Keeping it brief for the snippet]
+        pass 
+
+    # 2. Iterative Process (Optimization)
+    # We target the Leading Edge area: theta is near pi
+    # Minimize the negative curvature to find the maximum
+    result = minimize_scalar(lambda t: -curvature_at_theta(t), 
+                             bounds=(np.pi - 0.5, np.pi + 0.5), 
+                             method='bounded')
     
-    plt.figure()
-    plt.plot(k_vals)
-    plt.title("Curvature Estimation")
-    plt.xlabel("Index")
-    plt.ylabel("Curvature (1/R)")
+    true_theta_max = result.x
+    true_k_max = -result.fun
+    true_x, true_y = get_point_at_theta(true_theta_max)
+
+    print("-" * 30)
+    print("ITERATIVE CURVATURE ANALYSIS")
+    print(f"Max Curvature: {true_k_max:.4f}")
+    print(f"True LE Location: x={true_x:.6f}, y={true_y:.6f}")
+    print(f"Optimal Theta: {true_theta_max:.6f} rad")
+    print("-" * 30)
+
+    # --- PLOTTING REFINEMENT ---
+    plt.figure(figsize=(8, 4))
+    # Plot a range of theta around the peak to see the curve
+    t_fine = np.linspace(true_theta_max - 0.1, true_theta_max + 0.1, 100)
+    k_fine = [curvature_at_theta(ti) for ti in t_fine]
+    
+    plt.plot(t_fine, k_fine, 'g-', label='Continuous Curvature')
+    plt.plot(true_theta_max, true_k_max, 'ro', label='Iterative Max')
+    plt.title("Iterative Refinement of Max Curvature")
+    plt.xlabel("Theta (radians)")
+    plt.ylabel("Curvature")
+    plt.legend()
+    plt.grid(True)
     plt.show()
+    
+    from scipy.integrate import quad
+
+def arc_length_integrand(t):
+    dt = 1e-6
+    p_m1 = get_point_at_theta(t - dt)
+    p_p1 = get_point_at_theta(t + dt)
+    
+    # Derivatives dx/dt and dy/dt
+    dx_dt = (p_p1[0] - p_m1[0]) / (2 * dt)
+    dy_dt = (p_p1[1] - p_m1[1]) / (2 * dt)
+    
+    return np.sqrt(dx_dt**2 + dy_dt**2)
+
+# Calculate true lengths using integration
+# Note: theta_te to theta_le is upper, theta_le to theta_te+2pi is lower
+true_len_upper, _ = quad(arc_length_integrand, theta_te, theta_le)
+true_len_lower, _ = quad(arc_length_integrand, theta_le, theta_te + 2*np.pi)
+
+print(f"True Upper Surface Length: {true_len_upper:.6f}")
+print(f"True Lower Surface Length: {true_len_lower:.6f}")
+
+
+def fit_camber():
+    #define leading edge point
+    #define trailing edge point
+    #find midpoint of flat "camber" line
+    #find midpoint of airfoil thickness 
+    #fit circular arc through points
+    
