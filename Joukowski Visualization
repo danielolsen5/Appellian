@@ -16,7 +16,7 @@ Curvature = True   # Toggle curvature calculation/plotting
 # Clustering Settings
 # 1: No clustering (Uniform)
 # 2: Cosine clustering 
-clustering_method = 2 
+clustering_method = 1 
 
 # Smoothing Factor (0.0 to 1.0)
 smoothing_factor = .6
@@ -298,54 +298,91 @@ def length_clustering(true_len_upper, true_len_lower, n):
     
     # define 
     i = np.arange(n_upper + 1)
-    s_upper = (true_len_upper / 4) * (1 - np.cos((i * np.pi) / n_upper))
+    s_upper = (true_len_upper / 2) * (1 - np.cos((i * np.pi) / n_upper))
     
     j = np.arange(n_lower +1)
-    s_lower = (true_len_lower / 4) * (1 - np.cos((j * np.pi) / n_lower))
+    s_lower = (true_len_lower / 2) * (1 - np.cos((j * np.pi) / n_lower))
     return s_upper, s_lower
 
 s_upper, s_lower = length_clustering(true_len_upper, true_len_lower, n)
 
 c=1
 
-def generate_joukowski_z_plane(s_upper, s_lower, true_len_upper, true_len_lower, c, xi0, eta0):
-    # 1. Map s to theta (0 to pi for upper, pi to 2pi for lower)
-    # normalize s/len to map it to the 180-degree arc
-    theta_upper = (s_upper / true_len_upper) * np.pi
-    theta_lower = np.pi + (s_lower / true_len_lower) * np.pi
-    
-    all_theta = np.concatenate([theta_upper, theta_lower])
-    
-    # 2. Define the circle in the zeta plane
-    # R is calculated to ensure the circle hits the Trailing Edge at zeta = c
+# --- EXECUTION ---
+
+def generate_joukowski_z_plane(s_upper, s_lower, true_len_upper, true_len_lower, c, xi0, eta0, theta_le, theta_te):
+    # 1. Calculate Radius (unchanged)
     R = np.sqrt((c - xi0)**2 + eta0**2)
+
+    # 2. Map s to theta
+    # Upper Surface: TE -> LE
+    theta_upper = theta_te + (s_upper / true_len_upper) * (theta_le - theta_te)
     
-    # Center of circle
+    # Lower Surface: LE -> TE (Total range is 2pi)
+    theta_lower = theta_le + (s_lower / true_len_lower) * (theta_te + 2*np.pi - theta_le)
+    
+    # 3. Combine (Remove duplicate LE point to ensure smooth paneling)
+    # theta_upper ends at LE, theta_lower starts at LE. We drop the first point of lower.
+    all_theta = np.concatenate([theta_upper, theta_lower[1:]])
+    
+    # 4. Generate Coordinates on Circle
     mu = xi0 + 1j * eta0
-    
-    # Coordinates in the zeta plane (the circle)
-    # Note: subtract theta because standard Joukowski flows clockwise 
-    # from TE(0) -> LE(pi) -> TE(2pi)
     zeta = mu + R * np.exp(1j * all_theta)
     
-    # 3. Apply the Joukowski Transformation to get z-plane points
+    # 5. Transform to Airfoil
     z = zeta + (c**2 / zeta)
     
-    return z_real, z_imag
+    return z.real, z.imag
 
-z_real, z_imag = generate_joukowski_z_plane(s_upper, s_lower, true_len_upper, true_len_lower, c, xi0, eta0)
+# Generate Coordinates
+z_real_new, z_imag_new = generate_joukowski_z_plane(
+    s_upper, s_lower, true_len_upper, true_len_lower, c, xi0, eta0, theta_le, theta_te
+)
 
-plt.plot(z_real, z_imag, 'g-', label='Airfoil Points')
-plt.title("Consine Clustered in Z")
-plt.legend()
-plt.show()
+# --- CHECK DIRECTION ---
+# Calculate the "winding" of the polygon. Positive area = CCW, Negative = CW.
+# (Shoelace formula check)
+x = z_real_new
+y = z_imag_new
+area = 0.5 * np.sum(x[:-1]*y[1:] - x[1:]*y[:-1])
 
+if area < 0:
+    print("Detected Clockwise order. Reversing to Counter-Clockwise...")
+    z_real_new = z_real_new[::-1]
+    z_imag_new = z_imag_new[::-1]
+else:
+    print("Order is Counter-Clockwise (Correct).")
 
+# --- DISTANCE ANALYSIS ---
+ds_new = get_panel_spacing(z_real_new, z_imag_new)
 
-#def fit_camber():
-    #define leading edge point
-    #define trailing edge point
-    #find midpoint of flat "camber" line
-    #find midpoint of airfoil thickness 
-    #fit circular arc through points
+# --- FINAL PLOTTING ---
+if Plot:
+    plt.figure(figsize=(12, 10))
+
+    # Subplot 1: Airfoil Shape
+    ax1 = plt.subplot(2, 1, 1)
+    ax1.plot(z_real_new, z_imag_new, 'g.-', linewidth=1, markersize=3, label='Cosine Clustered (CCW)')
     
+    # Mark Start (TE) and Halfway (LE approx)
+    ax1.plot(z_real_new[0], z_imag_new[0], 'rx', markersize=10, markeredgewidth=2, label='Start (TE)')
+    
+    # Calculate approx TE Angle for title
+    te_angle = np.degrees(np.arcsin(-eta0/np.sqrt((c-xi0)**2+eta0**2)))
+    ax1.set_title(f"Corrected Clustering (TE Angle: {te_angle:.2f}°)")
+    ax1.set_xlabel("x")
+    ax1.set_ylabel("y")
+    ax1.axis('equal')
+    ax1.legend()
+    ax1.grid(True, alpha=0.3)
+
+    # Subplot 2: Panel Spacing
+    ax2 = plt.subplot(2, 1, 2)
+    ax2.plot(range(len(ds_new)), ds_new, '.-', color='purple')
+    ax2.set_title("Panel Spacing (Distance between points)")
+    ax2.set_xlabel("Point Index (TE $\\rightarrow$ Top $\\rightarrow$ LE $\\rightarrow$ Bottom $\\rightarrow$ TE)")
+    ax2.set_ylabel("Distance (ds)")
+    ax2.grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.show()
