@@ -7,7 +7,7 @@ Joukowski Airfoil Generation
 """
 
 # --- CONFIGURATION ---
-Debug = False       # Toggle debug outputs
+Debug = False      # Toggle debug outputs
 Plot = True         # Toggle plotting
 Export = False      # Toggle export to file
 Number = False      # Toggle printing point indices on plot
@@ -339,19 +339,22 @@ z_real_new, z_imag_new = generate_joukowski_z_plane(
     s_upper, s_lower, true_len_upper, true_len_lower, c, xi0, eta0, theta_le, theta_te
 )
 
-# --- CHECK DIRECTION ---
-# Calculate the "winding" of the polygon. Positive area = CCW, Negative = CW.
-# (Shoelace formula check)
-x = z_real_new
-y = z_imag_new
-area = 0.5 * np.sum(x[:-1]*y[1:] - x[1:]*y[:-1])
+# --- CHECK DIRECTION AND REORDERING ---
+# Shoelace formula: Positive area = CCW, Negative = CW.
+area = 0.5 * np.sum(z_real_new[:-1]*z_imag_new[1:] - z_real_new[1:]*z_imag_new[:-1])
 
-if area < 0:
-    print("Detected Clockwise order. Reversing to Counter-Clockwise...")
+# 1. Arrange the points to fit a clockwise convention
+if area > 0:
+    print("Detected Counter-Clockwise order. Reversing to Clockwise...")
     z_real_new = z_real_new[::-1]
     z_imag_new = z_imag_new[::-1]
 else:
-    print("Order is Counter-Clockwise (Correct).")
+    print("Order is already Clockwise.")
+
+# 2. Ensure point with the greatest x value (Trailing Edge) is the first point
+idx_te = np.argmax(z_real_new)
+z_real_new = np.roll(z_real_new, -idx_te)
+z_imag_new = np.roll(z_imag_new, -idx_te)
 
 # --- DISTANCE ANALYSIS ---
 ds_new = get_panel_spacing(z_real_new, z_imag_new)
@@ -362,10 +365,10 @@ if Plot:
 
     # Subplot 1: Airfoil Shape
     ax1 = plt.subplot(2, 1, 1)
-    ax1.plot(z_real_new, z_imag_new, 'g.-', linewidth=1, markersize=3, label='Cosine Clustered (CCW)')
+    ax1.plot(z_real_new, z_imag_new, 'g.-', linewidth=1, markersize=3, label='Cosine Clustered (CW)')
     
-    # Mark Start (TE) and Halfway (LE approx)
-    ax1.plot(z_real_new[0], z_imag_new[0], 'rx', markersize=10, markeredgewidth=2, label='Start (TE)')
+    # Mark Start (Index 0)
+    #ax1.plot(z_real_new[0], z_imag_new[0], 'rx', markersize=10, markeredgewidth=2, label='TE')
     
     # Calculate approx TE Angle for title
     te_angle = np.degrees(np.arcsin(-eta0/np.sqrt((c-xi0)**2+eta0**2)))
@@ -380,7 +383,7 @@ if Plot:
     ax2 = plt.subplot(2, 1, 2)
     ax2.plot(range(len(ds_new)), ds_new, '.-', color='purple')
     ax2.set_title("Panel Spacing (Distance between points)")
-    ax2.set_xlabel("Point Index (TE $\\rightarrow$ Top $\\rightarrow$ LE $\\rightarrow$ Bottom $\\rightarrow$ TE)")
+    ax2.set_xlabel("Point Index (0 is Trailing Edge)")
     ax2.set_ylabel("Distance (ds)")
     ax2.grid(True, alpha=0.3)
 
