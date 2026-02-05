@@ -356,6 +356,10 @@ idx_te = np.argmax(z_real_new)
 z_real_new = np.roll(z_real_new, -idx_te)
 z_imag_new = np.roll(z_imag_new, -idx_te)
 
+# DUPLICATE THE TE POINT
+z_real_new = np.append(z_real_new, z_real_new[0])
+z_imag_new = np.append(z_imag_new, z_imag_new[0])
+
 # --- DISTANCE ANALYSIS ---
 ds_new = get_panel_spacing(z_real_new, z_imag_new)
 
