@@ -7,12 +7,12 @@ from scipy.interpolate import RegularGridInterpolator
 
 # === DEBUG TOGGLE ===
 DEBUG = False
-Plot = True
-Print = False
+Plot = False
+Print = True
 
 # Global variables
 V_inf = 20.0             # freestream velocity magnitude
-a_deg = 0.0              # angle alpha in deg
+a_deg = 2.0              # angle alpha in deg
 a = np.radians(a_deg)
 P_inf = 101325.0         # free stream pressure Pa
 rho = 1.225              # air density kg/m^3
