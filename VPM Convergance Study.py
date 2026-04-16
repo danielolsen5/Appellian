@@ -10,7 +10,7 @@ rho = 1.225
 R = 1.0              
 xi0 = -0.10          
 V_inf = 10           
-alpha = np.radians(5)
+alpha = np.radians(0)
 
 # Iteration Settings
 eta0_list = [0.0, 0.05, 0.10, 0.15] # Iterating through camber

@@ -7,13 +7,13 @@ import matplotlib.pyplot as plt
 # Global variables
 #--------------------------------
 
-v_inf = 20          # freestream velocity
+v_inf = 1          # freestream velocity
 alpha = 0           # AOA in degrees
 a = np.radians(alpha)
 rho = 1.225         # air density
 c = 1               # chord length
-T = 5               # simulaion time
-n_steps = 100       # number of time steps
+T = 2               # simulaion time
+n_steps = 10       # number of time steps
 dt = T/n_steps      # time step 
 
 #-------------------------------
@@ -105,7 +105,7 @@ def build_A(x, y, xc, yx, dx, dy, l, n_pan):
 
     return A
 
-A = build_A(x, y, xc, yc, dx, dy, l)
+A = build_A(x, y, xc, yc, dx, dy, l, n_pan)
 
 # Apply Kutta Condition
 A[-1,:] = 0
@@ -181,16 +181,6 @@ A_matrix[-1, -1] = 1
 # Record each C_l
 cl_history = []
 
-
-#-------------------------
-# Time Stepping Setup
-#-------------------------
-
-# 1. Initialize Wake Containers
-wake_x = []       # X-positions of wake vortices
-wake_y = []       # Y-positions of wake vortices
-wake_gamma = []  # Strengths of wake vortices
-
 #-------------------------
 # Time Stepping Loop
 #-------------------------
@@ -211,27 +201,36 @@ B_fs = build_B_fs(v_inf, dy, dx, a, l)
 gamma = np.linalg.solve(A_matrix, np.append(B_fs, 0))
 gamma_airfoil_prev = np.sum(0.5 * (gamma[:-1] + gamma[1:]) * l)
 
+def get_freestream_conditions(t, v_base, alpha_base):
+    # Time-varying parameters
+    # Gradually increase velocity and AOA over the first half of simulation
+    ramp_end = T / 2 
+    
+    if t < ramp_end:
+        # Linear ramp for velocity and AOA
+        v_t = v_base + (2 * (t / ramp_end))  # Increase by 10 m/s
+        alpha_deg_t = alpha_base + (10 * (t / ramp_end))  # Increase by 5 degrees
+    else:
+        # Hold constant after ramp
+        v_t = v_base + 10
+        alpha_deg_t = alpha_base + 5
+        
+    return v_t, np.radians(alpha_deg_t)
+
 for step in range(n_steps):
-    # 1. Convect existing wake (vortices stay stationary relative to fluid)
+    t = step * dt
+    
+    # 1. Update time-varying freestream conditions
+    v_inf_t, a_t = get_freestream_conditions(t, v_inf, alpha)
+    
+    # 2. Re-calculate the freestream RHS (Quasi-steady contribution)
+    # This represents the lift produced if conditions were maintained [cite: 242]
+    B_fs = v_inf_t * ((dy * np.cos(a_t)) - (dx * np.sin(a_t)))
+    
+    # 3. Convect existing wake at current v_inf_t
     for i in range(len(wake_x)):
-        wake_x[i] += v_inf * np.cos(a) * dt
-        wake_y[i] += v_inf * np.sin(a) * dt
-        
-    # 2. Wake influence on airfoil (Section II)
-    B_wake = np.zeros(n_pan)
-    for i in range(n_pan):
-        v_ind_n = 0
-        nx, ny = -dy[i]/l[i], dx[i]/l[i]
-        for wx, wy, wg in zip(wake_x, wake_y, wake_gamma):
-            rx, ry = xc[i] - wx, yc[i] - wy
-            r2 = max(rx**2 + ry**2, 1e-6)
-            u_w, v_w = (wg / (2 * np.pi)) * (ry / r2), -(wg / (2 * np.pi)) * (rx / r2)
-            v_ind_n += (u_w * nx + v_w * ny)
-        B_wake[i] = -v_ind_n 
-        
-    # 3. Solve for new surface circulation
-    B_total = np.append(B_fs + B_wake, 0)
-    gamma = np.linalg.solve(A_matrix, B_total)
+        wake_x[i] += v_inf_t * np.cos(a_t) * dt
+        wake_y[i] += v_inf_t * np.sin(a_t) * dt
     
     # 4. Shed new vortex (Kelvin's Theorem)
     gamma_airfoil_current = np.sum(0.5 * (gamma[:-1] + gamma[1:]) * l)
@@ -249,11 +248,6 @@ for step in range(n_steps):
 # Visualization
 #-------------------------
 plt.figure(figsize=(10, 4))
-plt.subplot(1, 2, 1)
 plt.plot(x, y, 'k-'); plt.scatter(wake_x, wake_y, c=wake_gamma, s=5, cmap='coolwarm')
 plt.title("Wake Path"); plt.axis('equal'); plt.xlabel("x"); plt.ylabel("y")
-
-plt.subplot(1, 2, 2)
-plt.plot(time_history, cl_history)
-plt.title("Lift Coefficient over Time"); plt.xlabel("Time (s)"); plt.ylabel("$C_L$")
-plt.tight_layout(); plt.savefig('wake_analysis.png')
+plt.show()
