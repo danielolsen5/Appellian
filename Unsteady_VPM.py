@@ -165,7 +165,95 @@ def calculate_moment(x, y, gamma, c, l, V_inf, a):
 # Time Stepping
 #-------------------------
 
-for i in range(n_steps):
+# wake properties
+wake_x = []       # X-positions of shed vortices
+wake_y = []       # Y-positions of shed vortices
+wake_gamma = []  # Strengths of shed vortices
 
-    gamma_surface = np.zerros(n_steps) # circulation on the airfoil surface at each time step
-    gamma_wake = np.zerros(n_steps-1) # circulation of each wake vortex, there is no wake at T=0\
+# Pre-build A matrix 
+A_matrix = build_A(x, y, xc, yc, dx, dy, l, n_pan)
+
+# Apply Kutta Condition to the static matrix
+A_matrix[-1, :] = 0
+A_matrix[-1, 0] = 1
+A_matrix[-1, -1] = 1
+
+# Record each C_l
+cl_history = []
+
+
+#-------------------------
+# Time Stepping Setup
+#-------------------------
+
+# 1. Initialize Wake Containers
+wake_x = []       # X-positions of wake vortices
+wake_y = []       # Y-positions of wake vortices
+wake_gamma = []  # Strengths of wake vortices
+
+#-------------------------
+# Time Stepping Loop
+#-------------------------
+wake_x, wake_y, wake_gamma = [], [], []
+cl_history, time_history = [], []
+
+def get_total_cl(l, gamma, v_inf, c):
+    Gamma = np.sum(0.5 * (gamma[:-1] + gamma[1:]) * l)
+    return 2 * Gamma / (v_inf * c)
+
+def build_B_fs(v_inf, dy, dx, a, l):
+    nx, ny = -dy/l, dx/l
+    u_inf, v_inf_y = v_inf * np.cos(a), v_inf * np.sin(a)
+    return -(u_inf * nx + v_inf_y * ny)
+
+# Initial steady solve
+B_fs = build_B_fs(v_inf, dy, dx, a, l)
+gamma = np.linalg.solve(A_matrix, np.append(B_fs, 0))
+gamma_airfoil_prev = np.sum(0.5 * (gamma[:-1] + gamma[1:]) * l)
+
+for step in range(n_steps):
+    # 1. Convect existing wake (vortices stay stationary relative to fluid)
+    for i in range(len(wake_x)):
+        wake_x[i] += v_inf * np.cos(a) * dt
+        wake_y[i] += v_inf * np.sin(a) * dt
+        
+    # 2. Wake influence on airfoil (Section II)
+    B_wake = np.zeros(n_pan)
+    for i in range(n_pan):
+        v_ind_n = 0
+        nx, ny = -dy[i]/l[i], dx[i]/l[i]
+        for wx, wy, wg in zip(wake_x, wake_y, wake_gamma):
+            rx, ry = xc[i] - wx, yc[i] - wy
+            r2 = max(rx**2 + ry**2, 1e-6)
+            u_w, v_w = (wg / (2 * np.pi)) * (ry / r2), -(wg / (2 * np.pi)) * (rx / r2)
+            v_ind_n += (u_w * nx + v_w * ny)
+        B_wake[i] = -v_ind_n 
+        
+    # 3. Solve for new surface circulation
+    B_total = np.append(B_fs + B_wake, 0)
+    gamma = np.linalg.solve(A_matrix, B_total)
+    
+    # 4. Shed new vortex (Kelvin's Theorem)
+    gamma_airfoil_current = np.sum(0.5 * (gamma[:-1] + gamma[1:]) * l)
+    dg_shed = -(gamma_airfoil_current - gamma_airfoil_prev)
+    
+    wake_gamma.append(dg_shed)
+    wake_x.append(x[0] + 0.5 * v_inf * np.cos(a) * dt) # Shed at Trailing Edge
+    wake_y.append(y[0] + 0.5 * v_inf * np.sin(a) * dt)
+    
+    gamma_airfoil_prev = gamma_airfoil_current
+    cl_history.append(2 * gamma_airfoil_current / (v_inf * c))
+    time_history.append(step * dt)
+
+#-------------------------
+# Visualization
+#-------------------------
+plt.figure(figsize=(10, 4))
+plt.subplot(1, 2, 1)
+plt.plot(x, y, 'k-'); plt.scatter(wake_x, wake_y, c=wake_gamma, s=5, cmap='coolwarm')
+plt.title("Wake Path"); plt.axis('equal'); plt.xlabel("x"); plt.ylabel("y")
+
+plt.subplot(1, 2, 2)
+plt.plot(time_history, cl_history)
+plt.title("Lift Coefficient over Time"); plt.xlabel("Time (s)"); plt.ylabel("$C_L$")
+plt.tight_layout(); plt.savefig('wake_analysis.png')
