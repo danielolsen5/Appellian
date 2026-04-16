@@ -11,7 +11,7 @@ Plot = False
 Print = True
 
 # Global variables
-V_inf = 20.0             # freestream velocity magnitude
+V_inf = 10.0             # freestream velocity magnitude
 a_deg = 2.0              # angle alpha in deg
 a = np.radians(a_deg)
 P_inf = 101325.0         # free stream pressure Pa
@@ -141,6 +141,7 @@ def build_A(x, y, xc, yc, dx, dy, l, DEBUG=False):
 A = build_A(x, y, xc, yc, dx, dy, l, DEBUG=False)
 A[-1,:] = 0.0
 A[-1,0] = 1.0
+A[-1,n-1] = 1.0
 A[-1,-1] = 1.0
 
 
@@ -302,16 +303,18 @@ if Plot:
 
 
 # Section lift 1.6.32
-def calculate_lift_coefficient(l, gamma, c, V_inf):
+#def calculate_lift_coefficient(l, gamma, c, V_inf):
 
-    C_L = 0  # Initialize the lift coefficient 
-    n = len(l)
+    #C_L = 0  # Initialize the lift coefficient 
+    #n = len(l)
 
     # Loop through each segment from i=0 to n-1
-    for i in range(n):
-        segment_contribution = (l[i] / c) * ((gamma[i] + gamma[i+1]) / V_inf)
-        C_L += segment_contribution  # Add the segment's contribution to the total
-    return C_L
+    #for i in range(n):
+        #segment_contribution = (l[i] / c) * ((gamma[i] + gamma[i+1]) / V_inf)
+        #C_L += segment_contribution  # Add the segment's contribution to the total
+   # return C_L
+   
+C_L = gamma[-1] / (.5 * V_inf)
 
 # leading edge moment 
 def calculate_moment(x, y, gamma, c, l, V_inf, a):
@@ -332,7 +335,7 @@ def calculate_moment(x, y, gamma, c, l, V_inf, a):
 Calculation printouts
 """
 if Print: 
-    C_L = calculate_lift_coefficient(l, gamma, c, V_inf)
+    #C_L = calculate_lift_coefficient(l, gamma, c, V_inf)
     print(f"Lift Coefficient: {C_L:.5f} ")
 
     C_mle = calculate_moment(x, y, gamma, c, l, V_inf, a)
